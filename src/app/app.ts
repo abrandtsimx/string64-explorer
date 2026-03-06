@@ -111,7 +111,7 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
               <div class="output-area custom-scrollbar">
                 <!-- Explorer Output -->
                 <div *ngIf="selectedTabIndex === 0" class="h-full">
-                   <app-explorer-node *ngIf="explorerData" [key]="'Root'" [data]="explorerData"></app-explorer-node>
+                   <app-explorer-node *ngIf="explorerData" [key]="'Root'" [data]="explorerData" [parentIsArray]="false"></app-explorer-node>
                    <div *ngIf="!explorerData" class="empty-state">
                       <mat-icon class="empty-icon">account_tree</mat-icon>
                       <p class="empty-text">Mapping required</p>

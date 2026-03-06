@@ -51,6 +51,10 @@
   font-family: var(--font-code);
 }
 
+.node-key.array-item-label {
+  color: var(--color-indigo-300);
+}
+
 .node-meta {
   display: flex;
   align-items: center;

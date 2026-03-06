@@ -16,7 +16,9 @@ import { MatIconModule } from '@angular/material/icon';
           </mat-icon>
         </div>
         
-        <span class="node-key">{{ key }}</span>
+        <span class="node-key" [class.array-item-label]="parentIsArray">
+          {{ getDisplayKey() }}
+        </span>
         
         <ng-container *ngIf="isObject; else valueTemplate">
           <div class="node-meta">
@@ -39,7 +41,8 @@ import { MatIconModule } from '@angular/material/icon';
         <app-explorer-node 
           *ngFor="let child of getKeys()" 
           [key]="child" 
-          [data]="data[child]">
+          [data]="data[child]"
+          [parentIsArray]="isArray">
         </app-explorer-node>
       </div>
     </div>
@@ -48,6 +51,7 @@ import { MatIconModule } from '@angular/material/icon';
 export class ExplorerNodeComponent {
   @Input() key: string = '';
   @Input() data: any;
+  @Input() parentIsArray = false;
   expanded = false;
 
   get isObject(): boolean {
@@ -63,6 +67,27 @@ export class ExplorerNodeComponent {
       event.stopPropagation();
       this.expanded = !this.expanded;
     }
+  }
+
+  getDisplayKey(): string {
+    if (!this.parentIsArray || !this.isObject || this.isArray) {
+      return this.key;
+    }
+
+    // Try to find a better label for objects inside arrays
+    const keys = Object.keys(this.data);
+    
+    // 1. Exact "Id"
+    if (keys.includes('Id')) return `[${this.key}] ${this.data['Id']}`;
+    
+    // 2. Exact "Name"
+    if (keys.includes('Name')) return `[${this.key}] ${this.data['Name']}`;
+    
+    // 3. Any key containing "Id" (case sensitive)
+    const idKey = keys.find(k => k.includes('Id'));
+    if (idKey) return `[${this.key}] ${this.data[idKey]}`;
+
+    return this.key;
   }
 
   getKeys(): string[] {
