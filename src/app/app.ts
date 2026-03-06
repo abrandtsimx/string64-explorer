@@ -171,8 +171,17 @@ export class App implements OnInit {
       this.processInput();
     }
 
-    // 2. Fragment check (#) for longer data from Unity/OpenURL
-    // We subscribe to fragmentation changes reactively
+    // 2. Manual fragment check as fallback for initial load
+    const hash = window.location.hash;
+    if (hash && hash.includes('data=')) {
+      const parts = hash.split('data=');
+      if (parts.length > 1) {
+        this.jsonInput = decodeURIComponent(parts[1]);
+        this.processInput();
+      }
+    }
+
+    // 3. Fragment check (#) for reactive changes
     this.route.fragment.subscribe(fragment => {
       if (fragment && fragment.startsWith('data=')) {
         try {
