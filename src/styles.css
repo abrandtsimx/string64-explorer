@@ -1,0 +1,153 @@
+@import "@angular/material/prebuilt-themes/indigo-pink.css";
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-code: 'Fira Code', monospace;
+  
+  --color-indigo-50: #f5f7ff;
+  --color-indigo-400: #818cf8;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-slate-50: #f8fafc;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-rose-400: #fb7185;
+  --color-rose-600: #e11d48;
+}
+
+/* Base Reset */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background-color: var(--color-slate-950);
+}
+
+body {
+  color: var(--color-slate-200);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Material Tab Overrides */
+.mat-mdc-tab-group.custom-tabs {
+  --mdc-tab-indicator-active-indicator-color: var(--color-indigo-500) !important;
+  --mat-tab-header-active-label-text-color: #ffffff !important;
+  --mat-tab-header-inactive-label-text-color: var(--color-slate-300) !important;
+}
+
+.mat-mdc-tab-group.custom-tabs .mat-mdc-tab-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  margin-bottom: 0 !important;
+}
+
+.mat-mdc-tab-group.custom-tabs .mdc-tab {
+  padding: 0 1.5rem !important;
+  height: 56px !important;
+  opacity: 0.8;
+}
+
+.mat-mdc-tab-group.custom-tabs .mdc-tab--active {
+  opacity: 1 !important;
+}
+
+.mat-mdc-tab-group.custom-tabs .mdc-tab__text-label {
+  font-weight: 800 !important;
+  letter-spacing: 0.1em !important;
+  font-size: 0.7rem !important;
+  text-transform: uppercase;
+  color: var(--color-slate-400) !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.mat-mdc-tab-group.custom-tabs .mdc-tab--active .mdc-tab__text-label {
+  color: #ffffff !important;
+}
+
+/* Utility Classes (Replacing some Tailwind ones) */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.flex-grow { flex-grow: 1; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.overflow-hidden { overflow: hidden; }
+.overflow-auto { overflow: auto; }
+.whitespace-pre { white-space: pre; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.text-rose { color: var(--color-rose-400); }
+.text-emerald { color: var(--color-emerald-400); }
+.text-indigo { color: var(--color-indigo-400); }
+.text-blue { color: var(--color-blue-400); }
+.text-slate { color: var(--color-slate-400); }
+.font-bold { font-weight: 700; }
+.font-black { font-weight: 900; }
+
+
+/* Scrollbar and Syntax Highlighting */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.2); }
+
+.token-string { color: #a5b4fc; }
+.token-number { color: #f472b6; }
+.token-boolean { color: #fbbf24; }
+.token-key { color: #cbd5e1; font-weight: 600; }
+.token-null { color: #f87171; }
+.code-font { font-family: var(--font-code); }
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-ping {
+  animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
