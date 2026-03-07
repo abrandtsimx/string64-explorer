@@ -88,6 +88,11 @@
   text-overflow: ellipsis;
 }
 
+.id-segment {
+  color: var(--color-vital-red);
+  opacity: 0.9;
+}
+
 .btn-remove-bm {
   background: transparent;
   border: none;
@@ -278,7 +283,7 @@
 
 .action-button {
   width: 100%;
-  background: linear-gradient(to right, var(--color-vital-red), #b91c1c);
+  background: linear-gradient(to right, var(--color-procedure-blue), #005a9c);
   color: white;
   font-weight: 800;
   padding: 0.6rem 1.25rem;
@@ -298,8 +303,8 @@
 }
 
 .action-button:hover {
-  background: linear-gradient(to right, #f87171, var(--color-vital-red));
-  box-shadow: 0 0 15px rgba(227, 31, 47, 0.3);
+  background: linear-gradient(to right, #38bdf8, var(--color-procedure-blue));
+  box-shadow: 0 0 15px rgba(0, 124, 192, 0.3);
 }
 
 .btn-secondary {
@@ -819,6 +824,49 @@
   font-style: italic;
 }
 
+.instance-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  gap: 1rem;
+}
+
+.btn-replace-selected {
+  background-color: var(--color-vital-red);
+  color: white;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.4rem;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-replace-selected:hover {
+  background-color: #f87171;
+  box-shadow: 0 0 10px rgba(227, 31, 47, 0.2);
+}
+
+.select-all-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-slate-400);
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+
+.select-all-row input {
+  accent-color: var(--color-procedure-blue);
+}
+
 .instances-list {
   display: flex;
   flex-direction: column;
@@ -834,6 +882,23 @@
   gap: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+}
+
+.instance-card.selected {
+  border-color: rgba(0, 124, 192, 0.3);
+  background-color: rgba(0, 124, 192, 0.05);
+}
+
+.instance-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.instance-select input {
+  accent-color: var(--color-procedure-blue);
+  cursor: pointer;
 }
 
 .instance-card:hover {

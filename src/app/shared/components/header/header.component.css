@@ -1,6 +1,6 @@
 .header-root {
   width: 100%;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .header-card {
@@ -11,7 +11,7 @@
   background-color: var(--color-midnight-scrub);
   backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.25rem;
   border-radius: 1rem;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
   position: relative;
@@ -49,17 +49,42 @@
   width: auto;
 }
 
+.title-group {
+  display: flex;
+  align-items: center;
+  /* Extra padding to detect mouse before it hits text */
+  padding: 2rem;
+  margin: -2rem;
+}
+
 .main-title {
   font-size: 1.25rem;
   font-weight: 900;
   letter-spacing: 0.05em;
-  color: white;
   margin: 0;
   font-family: 'Lato', sans-serif;
-}
-
-.gradient-text {
-  background: linear-gradient(to right, var(--color-sterile-white), var(--color-procedure-blue));
+  cursor: default;
+  user-select: none;
+  
+  /* Always use gradient to prevent black flicker on state switch */
+  background: radial-gradient(
+    circle 100px at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+    var(--color-vital-red) 0%,
+    white 80%
+  );
+  
+  /* Fallback color */
+  background-color: white;
+  
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  
+  /* Remove transition on background as it makes mouse tracking feel laggy/inaccurate */
+  transition: none;
+}
+
+/* Ensure color stays white if mouse is far away */
+.title-group:not(:hover) .main-title {
+  background: white;
+  -webkit-background-clip: text;
 }

@@ -171,6 +171,31 @@ export class DataService {
     return newObj;
   }
 
+  replaceAtPaths(data: any, paths: string[][], newValue: any, currentPath: string[] = []): any {
+    const pathStr = JSON.stringify(currentPath);
+    const shouldReplace = paths.some(p => JSON.stringify(p) === pathStr);
+
+    if (shouldReplace) return newValue;
+
+    if (typeof data !== 'object' || data === null) {
+      return data;
+    }
+
+    if (Array.isArray(data)) {
+      return data.map((item, i) => this.replaceAtPaths(item, paths, newValue, [...currentPath, String(i)]));
+    }
+
+    const newObj: any = {};
+    for (const key in data) {
+      if (key.startsWith('__')) {
+        newObj[key] = data[key];
+        continue;
+      }
+      newObj[key] = this.replaceAtPaths(data[key], paths, newValue, [...currentPath, key]);
+    }
+    return newObj;
+  }
+
   countOccurrences(data: any, value: any): number {
     let count = 0;
     if (data === value) count++;
@@ -237,27 +262,41 @@ export class DataService {
     const isGuid = (val: any) => typeof val === 'string' && 
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-    const formatId = (val: any) => {
+    const formatIdValue = (val: any) => {
       const s = String(val);
       if (isGuid(s)) return s.substring(0, 4) + '...';
       return s;
     };
 
-    let result = '';
-    // Priority Rule: Name > Type > Id (formatted)
-    if (nameVal) {
-      result = String(nameVal);
-    } else if (typeVal) {
-      result = String(typeVal);
-    } else if (idVal) {
-      result = formatId(idVal);
+    let idPart = '';
+    let mainPart = '';
+
+    if (idVal !== null && idVal !== undefined) {
+      if (!isGuid(idVal)) {
+        // Non-GUID ID: always include it
+        idPart = String(idVal);
+        mainPart = nameVal ? String(nameVal) : (typeVal ? String(typeVal) : '');
+      } else {
+        // GUID ID: only include if no name/type
+        if (nameVal) {
+          mainPart = String(nameVal);
+        } else if (typeVal) {
+          mainPart = String(typeVal);
+        } else {
+          idPart = formatIdValue(idVal);
+        }
+      }
     } else {
-      result = fallback || '';
+      mainPart = nameVal ? String(nameVal) : (typeVal ? String(typeVal) : '');
     }
 
-    // Cap and ellipsis at 24 characters
-    if (result.length > 24) {
-      result = result.substring(0, 24) + '...';
+    if (!mainPart && !idPart) mainPart = fallback || '';
+
+    let result = (idPart && mainPart) ? `${idPart} | ${mainPart}` : (idPart || mainPart);
+
+    // Cap and ellipsis at 40 characters
+    if (result.length > 40) {
+      result = result.substring(0, 40) + '...';
     }
     
     return result;

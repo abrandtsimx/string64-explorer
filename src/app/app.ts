@@ -46,7 +46,7 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
               </div>
               <div class="bookmarks-list">
                 <div *ngFor="let bm of bookmarks" class="bookmark-card" (click)="handleJump(bm.path)">
-                  <span class="bookmark-label">{{ bm.label }}</span>
+                  <span class="bookmark-label" [innerHTML]="getBookmarkHtml(bm)"></span>
                   <button class="btn-remove-bm" (click)="$event.stopPropagation(); removeBookmark(bm.path)">
                     <mat-icon>close</mat-icon>
                   </button>
@@ -215,13 +215,31 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                     <div class="instance-info">
                       <p class="meta-label">Value:</p>
                       <code class="instance-value">{{ instanceValue }}</code>
-                      <p class="meta-sub">Found {{ instancesList.length }} instances</p>
+                      
+                      <div class="instance-actions-row">
+                        <p class="meta-sub">Found {{ instancesList.length }} instances</p>
+                        <button *ngIf="editMode && instancesList.length > 0" 
+                                class="btn-replace-selected" 
+                                (click)="openReplaceModal({oldValue: instanceValue, newValue: instanceValue})">
+                          Replace Selected ({{ selectedInstances.size }})
+                        </button>
+                      </div>
+
+                      <label class="select-all-row" *ngIf="instancesList.length > 0">
+                        <input type="checkbox" [checked]="isAllInstancesSelected()" (change)="toggleSelectAllInstances()">
+                        <span>Select All</span>
+                      </label>
                     </div>
 
                     <div class="instances-list">
-                      <div *ngFor="let inst of instancesList" class="instance-card" (click)="jumpToInstance(inst.path)">
-                        <div class="instance-icon">
-                          <mat-icon>gps_fixed</mat-icon>
+                      <div *ngFor="let inst of instancesList" 
+                           class="instance-card" 
+                           [class.selected]="isInstanceSelected(inst.path)"
+                           (click)="jumpToInstance(inst.path)">
+                        <div class="instance-select" (click)="$event.stopPropagation()">
+                          <input type="checkbox" 
+                                 [checked]="isInstanceSelected(inst.path)" 
+                                 (change)="toggleInstanceSelection(inst.path)">
                         </div>
                         <div class="instance-details">
                           <p class="instance-context">{{ inst.context }}</p>
@@ -276,7 +294,8 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
             <div class="replace-info">
               <p class="replace-label">Current Value:</p>
               <code class="value-preview">{{ replaceOldValue }}</code>
-              <p class="replace-meta">Occurs <span class="count-tag">{{ replaceCount }}</span> times in the data.</p>
+              <p class="replace-meta" *ngIf="!showInstancesSidebar">Occurs <span class="count-tag">{{ replaceCount }}</span> times in the data.</p>
+              <p class="replace-meta" *ngIf="showInstancesSidebar">Replacing <span class="count-tag">{{ selectedInstances.size }}</span> of <span class="count-tag">{{ instancesList.length }}</span> instances.</p>
             </div>
             <div class="replace-input-group">
               <p class="replace-label">Replace with:</p>
@@ -317,6 +336,7 @@ export class App implements OnInit {
   showInstancesSidebar = false;
   instancesList: any[] = [];
   instanceValue: any = null;
+  selectedInstances: Set<string> = new Set();
 
   bookmarks: { path: string[], label: string }[] = [];
   showInputPanel = true;
@@ -372,30 +392,26 @@ export class App implements OnInit {
   }
 
   processInput() {
-    let input = this.jsonInput.trim();
-    if (!input) return;
+    try {
+      let input = this.jsonInput.trim();
+      if (!input) return;
 
-    // Auto-clear bookmarks when new data is processed
-    this.clearBookmarks();
+      // Auto-clear bookmarks when new data is processed
+      this.clearBookmarks();
 
-    input = this.dataService.decodeIfBase64(input);
-    const cleanText = this.stripMetadata ? this.dataService.stripMetadata(input) : input;
+      input = this.dataService.decodeIfBase64(input);
+      const cleanText = this.stripMetadata ? this.dataService.stripMetadata(input) : input;
 
-    this.explorerData = null;
-    this.toolAddresses = [];
+      this.explorerData = null;
+      this.toolAddresses = [];
 
-    if (this.selectedTabIndex === 0) { // Explore
-      try {
+      if (this.selectedTabIndex === 0) { // Explore
         let jsonStr = cleanText;
         if (jsonStr.startsWith('"') && !jsonStr.startsWith('{')) jsonStr = '{' + jsonStr + '}';
         const data = JSON.parse(jsonStr);
         this.explorerData = this.dataService.recursivelyDecodeData(data);
         this.showMessage("Data structure mapped");
-      } catch (e: any) {
-        this.showMessage("Mapping failed", "error");
-      }
-    } else if (this.selectedTabIndex === 1) { // Format
-      try {
+      } else if (this.selectedTabIndex === 1) { // Format
         let jsonToParse = cleanText;
         if (jsonToParse.startsWith('"') && !jsonToParse.startsWith('{')) {
           jsonToParse = '{' + jsonToParse + '}';
@@ -403,17 +419,17 @@ export class App implements OnInit {
         const jsonObj = JSON.parse(jsonToParse);
         this.jsonOutput = this.dataService.syntaxHighlight(JSON.stringify(jsonObj, null, 4));
         this.showMessage("Metadata stripped & prettified");
-      } catch (err: any) {
-        this.jsonOutput = `<span class="text-rose font-bold">PARSE ERROR</span>\n\n${err.message}`;
-        this.showMessage("Parsing error", "error");
+      } else if (this.selectedTabIndex === 2) { // Extract
+        this.toolAddresses = this.dataService.recursiveToolExtract(cleanText);
+        if (this.toolAddresses.length > 0) {
+          this.showMessage(`Located ${this.toolAddresses.length} addresses`);
+        } else {
+          this.showMessage("No addresses found", "error");
+        }
       }
-    } else if (this.selectedTabIndex === 2) { // Extract
-      this.toolAddresses = this.dataService.recursiveToolExtract(cleanText);
-      if (this.toolAddresses.length > 0) {
-        this.showMessage(`Located ${this.toolAddresses.length} addresses`);
-      } else {
-        this.showMessage("No addresses found", "error");
-      }
+    } catch (e: any) {
+      console.error("Processing error:", e);
+      this.showMessage("Processing failed: " + e.message, "error");
     }
   }
 
@@ -482,7 +498,13 @@ export class App implements OnInit {
     setTimeout(() => {
       this.currentExpansionPath = path;
       this.showMessage("Jumped to context");
-    }, 150); // Increased delay to ensure search reset is processed
+
+      // 4. Clear the path after it has been propagated to the tree.
+      // This stops the forced-expansion logic from locking the tree.
+      setTimeout(() => {
+        this.currentExpansionPath = [];
+      }, 1000);
+    }, 150);
   }
 
   globalReplace(event: { oldValue: any, newValue: any }) {
@@ -514,7 +536,7 @@ export class App implements OnInit {
       } else {
         // For primitives, just show the value (truncated if very long)
         const valStr = String(event.data);
-        descriptor = valStr.length > 20 ? valStr.substring(0, 20) + '...' : valStr;
+        descriptor = valStr.length > 40 ? valStr.substring(0, 40) + '...' : valStr;
       }
 
       const label = descriptor ? `${key}: ${descriptor}` : key;
@@ -542,6 +564,22 @@ export class App implements OnInit {
     return this.bookmarks.some(b => JSON.stringify(b.path) === JSON.stringify(path));
   }
 
+  getBookmarkHtml(bm: { path: string[], label: string }): string {
+    const raw = bm.label;
+    if (raw.includes(': ')) {
+      const mainParts = raw.split(': ');
+      const keyPart = mainParts[0];
+      const descPart = mainParts[1];
+
+      if (descPart.includes(' | ')) {
+        const descSubParts = descPart.split(' | ');
+        return `${keyPart}: <span class="id-segment">${descSubParts[0]}</span> | ${descSubParts[1]}`;
+      }
+      return raw;
+    }
+    return raw;
+  }
+
   openReplaceModal(event: { oldValue: any, newValue: any }) {
     this.replaceOldValue = event.oldValue;
     this.replaceNewValue = event.oldValue; // Default to same value for easy editing
@@ -552,14 +590,24 @@ export class App implements OnInit {
   confirmReplace() {
     if (!this.explorerData) return;
     
-    // Cast type if needed (very basic)
     let finalValue = this.replaceNewValue;
     if (typeof this.replaceOldValue === 'number') finalValue = Number(this.replaceNewValue);
     if (typeof this.replaceOldValue === 'boolean') finalValue = String(this.replaceNewValue).toLowerCase() === 'true';
 
-    this.explorerData = this.dataService.replaceAll(this.explorerData, this.replaceOldValue, finalValue);
+    // If sidebar is open, check if we are doing selective replace
+    if (this.showInstancesSidebar && this.selectedInstances.size < this.instancesList.length) {
+      const selectedPaths = Array.from(this.selectedInstances).map(ps => JSON.parse(ps));
+      this.explorerData = this.dataService.replaceAtPaths(this.explorerData, selectedPaths, finalValue);
+      this.showMessage(`Replaced ${this.selectedInstances.size} selected instances`);
+      // Refresh list
+      this.viewInstances(this.instanceValue);
+    } else {
+      this.explorerData = this.dataService.replaceAll(this.explorerData, this.replaceOldValue, finalValue);
+      this.showMessage(`Replaced ${this.replaceCount} instances`);
+      if (this.showInstancesSidebar) this.viewInstances(this.instanceValue);
+    }
+    
     this.showReplaceModal = false;
-    this.showMessage(`Replaced ${this.replaceCount} instances`);
   }
 
   cancelReplace() {
@@ -568,9 +616,35 @@ export class App implements OnInit {
 
   viewInstances(value: any) {
     this.instanceValue = value;
-    // We pass ['Root'] as the initial path to match our Explorer component's root key
     this.instancesList = this.dataService.findAllInstances(this.explorerData, value, ['Root']);
+    // Default to all selected
+    this.selectedInstances = new Set(this.instancesList.map(inst => JSON.stringify(inst.path)));
     this.showInstancesSidebar = true;
+  }
+
+  toggleInstanceSelection(path: string[]) {
+    const ps = JSON.stringify(path);
+    if (this.selectedInstances.has(ps)) {
+      this.selectedInstances.delete(ps);
+    } else {
+      this.selectedInstances.add(ps);
+    }
+  }
+
+  isInstanceSelected(path: string[]): boolean {
+    return this.selectedInstances.has(JSON.stringify(path));
+  }
+
+  isAllInstancesSelected(): boolean {
+    return this.instancesList.length > 0 && this.selectedInstances.size === this.instancesList.length;
+  }
+
+  toggleSelectAllInstances() {
+    if (this.isAllInstancesSelected()) {
+      this.selectedInstances.clear();
+    } else {
+      this.selectedInstances = new Set(this.instancesList.map(inst => JSON.stringify(inst.path)));
+    }
   }
 
   closeInstancesSidebar() {

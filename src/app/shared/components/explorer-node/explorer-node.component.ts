@@ -17,8 +17,7 @@ import { DataService } from '../../../core/services/data.service';
           </mat-icon>
         </div>
         
-        <span class="node-key" [class.array-item-label]="parentIsArray">
-          {{ getDisplayKey() }}
+        <span class="node-key" [class.array-item-label]="parentIsArray" [innerHTML]="getDisplayHtml()">
         </span>
         
         <ng-container *ngIf="isObject; else valueTemplate">
@@ -236,8 +235,21 @@ export class ExplorerNodeComponent implements OnChanges {
       return this.key;
     }
 
-    const descriptor = this.dataService.getDescriptor(this.data, null);
-    return descriptor ? `[${this.key}] ${descriptor}` : this.key;
+    return this.dataService.getDescriptor(this.data, null);
+  }
+
+  getDisplayHtml(): string {
+    const raw = this.getDisplayKey();
+    if (raw === this.key) return raw;
+
+    // If it has the " | " separator, wrap the ID part in a colored span
+    if (raw.includes(' | ')) {
+      const parts = raw.split(' | ');
+      const html = `<span class="id-segment">${parts[0]}</span> | ${parts[1]}`;
+      return this.parentIsArray ? `[${this.key}] ${html}` : html;
+    }
+
+    return this.parentIsArray ? `[${this.key}] ${raw}` : raw;
   }
 
   getKeys(): string[] {
