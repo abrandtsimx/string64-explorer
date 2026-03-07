@@ -1,4 +1,4 @@
-import { Component, inject, ViewEncapsulation, OnInit } from '@angular/core';
+import { Component, inject, ViewEncapsulation, OnInit, ElementRef, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -7,7 +7,20 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { HeaderComponent } from './shared/components/header/header.component';
 import { DataService } from './core/services/data.service';
+import { StorageService } from './core/services/storage.service';
 import { ExplorerNodeComponent } from './shared/components/explorer-node/explorer-node.component';
+
+interface ExplorerFile {
+  id: string;
+  name: string;
+  jsonInput: string;
+  originalJsonInput: string;
+  explorerData: any;
+  originalExplorerData: any;
+  bookmarks: { path: string[], label: string }[];
+  hasChanges: boolean;
+  stripMetadata: boolean;
+}
 
 @Component({
   selector: 'app-root',
@@ -17,43 +30,96 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
     CommonModule, 
     FormsModule, 
     MatTabsModule,
+    MatButtonModule,
     MatIconModule,
     HeaderComponent, 
     ExplorerNodeComponent
   ],
   styleUrl: './app.css',
   template: `
-    <div class="app-container">
+    <div class="app-container" (dragover)="$event.preventDefault()" (drop)="$event.preventDefault()">
       <div class="main-layout">
         <app-header></app-header>
 
-        <main class="workbench-grid" [class.input-collapsed]="!showInputPanel">
-          <!-- Bookmarks Sidebar (Left) -->
-          <aside class="bookmarks-sidebar">
-            <div class="sidebar-header">
-              <div class="header-title">
-                <mat-icon>bookmarks</mat-icon>
-                <span>Bookmarks</span>
+        <main class="workbench-grid" 
+              [class.input-collapsed]="!showInputPanel"
+              [style.grid-template-columns]="bookmarksWidth + 'px ' + (showInputPanel ? '1fr 1.2fr' : '1fr')">
+          
+          <!-- Navigator Sidebar (Left) -->
+          <div class="sidebar-container" [class.resizing]="isResizing" [style.width.px]="bookmarksWidth">
+            
+            <!-- Files Browser Panel -->
+            <section class="panel sidebar-panel" 
+                     [style.height.px]="filesHeight"
+                     (dragover)="onDragOver($event)" 
+                     (drop)="onFileDrop($event)">
+              <div class="panel-header">
+                <div class="header-title-group">
+                  <div class="icon-box">
+                    <mat-icon class="icon-indigo">folder_open</mat-icon>
+                  </div>
+                  <div class="title-text">
+                    <h2>Files</h2>
+                  </div>
+                </div>
+                <button class="btn-icon" (click)="createNewFile()" title="New JSON Session">
+                  <mat-icon>add</mat-icon>
+                </button>
               </div>
-              <button *ngIf="bookmarks.length > 0" class="btn-clear-all" (click)="clearBookmarks()" title="Clear all bookmarks">
-                <mat-icon>delete_sweep</mat-icon>
-              </button>
-            </div>
-            <div class="sidebar-content custom-scrollbar">
-              <div *ngIf="bookmarks.length === 0" class="empty-state mini">
-                <mat-icon class="empty-icon">bookmark_border</mat-icon>
-                <p class="empty-text">No bookmarks</p>
-              </div>
-              <div class="bookmarks-list">
-                <div *ngFor="let bm of bookmarks" class="bookmark-card" (click)="handleJump(bm.path)">
-                  <span class="bookmark-label" [innerHTML]="getBookmarkHtml(bm)"></span>
-                  <button class="btn-remove-bm" (click)="$event.stopPropagation(); removeBookmark(bm.path)">
-                    <mat-icon>close</mat-icon>
+              <div class="panel-body files-list custom-scrollbar">
+                <div *ngFor="let file of files" 
+                     class="file-card" 
+                     [class.active]="file.id === activeFileId"
+                     (click)="switchFile(file.id)">
+                  <mat-icon class="file-icon">{{ file.hasChanges ? 'edit_note' : 'description' }}</mat-icon>
+                  <input class="file-name-input" 
+                         [value]="file.name" 
+                         (change)="renameFile(file.id, $any($event.target).value)"
+                         (click)="$event.stopPropagation()">
+                  <button class="btn-icon btn-remove" *ngIf="files.length > 1" (click)="$event.stopPropagation(); deleteFile(file.id)">
+                    <mat-icon>delete_outline</mat-icon>
                   </button>
                 </div>
               </div>
-            </div>
-          </aside>
+
+              <!-- Vertical Resize Handle -->
+              <div class="resize-handle-v" (mousedown)="startVerticalResize($event)"></div>
+            </section>
+
+            <!-- Bookmarks Panel -->
+            <section class="panel sidebar-panel flex-grow">
+              <div class="panel-header">
+                <div class="header-title-group">
+                  <div class="icon-box">
+                    <mat-icon class="icon-indigo">bookmarks</mat-icon>
+                  </div>
+                  <div class="title-text">
+                    <h2>Bookmarks</h2>
+                  </div>
+                </div>
+                <button *ngIf="bookmarks.length > 0" class="btn-icon" (click)="clearBookmarks()" title="Clear all bookmarks">
+                  <mat-icon>delete_sweep</mat-icon>
+                </button>
+              </div>
+              <div class="panel-body custom-scrollbar">
+                <div *ngIf="bookmarks.length === 0" class="empty-state mini">
+                  <mat-icon class="empty-icon">bookmark_border</mat-icon>
+                  <p class="empty-text">No bookmarks</p>
+                </div>
+                <div class="bookmarks-list">
+                  <div *ngFor="let bm of bookmarks" class="bookmark-card" (click)="handleJump(bm.path)">
+                    <span class="bookmark-label" [innerHTML]="getBookmarkHtml(bm)"></span>
+                    <button class="btn-icon btn-remove" (click)="$event.stopPropagation(); removeBookmark(bm.path)">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            <!-- Horizontal Resize Handle (Sidebar Width) -->
+            <div class="resize-handle-h" (mousedown)="startResizing($event)"></div>
+          </div>
 
           <!-- Input Terminal Panel -->
           <section class="panel" *ngIf="showInputPanel">
@@ -68,7 +134,7 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                 </div>
               </div>
               <div class="header-actions">
-                <label class="setting-toggle" title="Strip Metadata from JSON">
+                <label class="setting-toggle" title="Strip Metadata from JSON (Authored Environments)">
                   <input type="checkbox" [(ngModel)]="stripMetadata" (change)="saveSettings(); processInput()">
                   <span class="toggle-label">Strip</span>
                 </label>
@@ -84,15 +150,21 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
             <div class="panel-body">
               <textarea 
                 [(ngModel)]="jsonInput"
+                [readonly]="isInputLocked"
                 class="input-textarea custom-scrollbar"
+                [class.locked]="isInputLocked"
                 placeholder="Paste raw data to begin processing..."
               ></textarea>
             </div>
 
             <div class="panel-footer">
-              <button (click)="processInput()" class="action-button">
+              <button *ngIf="!isInputLocked" (click)="processInput()" class="action-button">
                 <span class="relative">Process</span>
                 <mat-icon class="relative">bolt</mat-icon>
+              </button>
+              <button *ngIf="isInputLocked" (click)="isInputLocked = false" class="action-button secondary">
+                <span class="relative">Unlock Input</span>
+                <mat-icon class="relative">edit</mat-icon>
               </button>
             </div>
           </section>
@@ -147,33 +219,73 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                 {{ statusMessage }}
               </div>
 
-              <div class="output-area custom-scrollbar">
+              <div class="output-area">
                 <!-- Explorer Output -->
-                <div *ngIf="selectedTabIndex === 0" class="h-full flex flex-col">
-                   <div class="explorer-actions-row">
-                     <div class="mode-slider-container">
-                       <div class="mode-slider" [class.edit-active]="editMode" (click)="editMode = !editMode; saveSettings()">
-                         <div class="mode-knob"></div>
-                         <span class="mode-text view">VIEW</span>
-                         <span class="mode-text edit">EDIT</span>
+                <div *ngIf="selectedTabIndex === 0" class="h-full flex flex-col overflow-hidden">
+                   <!-- Fixed Explorer Header -->
+                   <div class="explorer-fixed-header">
+                     <div class="explorer-actions-row">
+                       <div class="mode-slider-container">
+                         <div class="mode-slider" [class.edit-active]="editMode" (click)="editMode = !editMode; saveSettings()">
+                           <div class="mode-knob"></div>
+                           <span class="mode-text view">VIEW</span>
+                           <span class="mode-text edit">EDIT</span>
+                         </div>
+                       </div>
+
+                       <div class="search-bar-container flex-grow">
+                         <mat-icon class="search-icon">search</mat-icon>
+                         <input 
+                           type="text" 
+                           [(ngModel)]="explorerSearchQuery" 
+                           placeholder="Search values..." 
+                           class="search-input"
+                         >
+                         <button *ngIf="explorerSearchQuery" (click)="explorerSearchQuery = ''" class="clear-search">
+                            <mat-icon>close</mat-icon>
+                         </button>
                        </div>
                      </div>
 
-                     <div class="search-bar-container flex-grow">
-                       <mat-icon class="search-icon">search</mat-icon>
-                       <input 
-                         type="text" 
-                         [(ngModel)]="explorerSearchQuery" 
-                         placeholder="Search values..." 
-                         class="search-input"
-                       >
-                       <button *ngIf="explorerSearchQuery" (click)="explorerSearchQuery = ''" class="clear-search">
-                          <mat-icon>close</mat-icon>
-                       </button>
+                     <!-- Selection Breadcrumb Bar -->
+                     <div class="selection-breadcrumb-bar" *ngIf="currentSelectedDisplayPath.length > 1">
+                       <div class="instance-path">
+                          <ng-container *ngFor="let segment of currentSelectedPath; let i = index; let last = last">
+                            <span class="path-segment" 
+                                  [class.target-segment]="last"
+                                  *ngIf="segment !== 'Root'" 
+                                  (click)="handleJump(currentSelectedPath.slice(0, i + 1))">
+                              {{ currentSelectedDisplayPath[i] }}
+                            </span>
+                          </ng-container>
+                       </div>
                      </div>
                    </div>
 
-                   <div class="pt-2">
+                   <!-- Scrollable Explorer Content -->
+                   <div class="explorer-scroll-content custom-scrollbar">
+                     <!-- Changes Dashboard -->
+                     <div class="changes-dashboard" *ngIf="hasChanges">
+                       <div class="changes-info">
+                         <mat-icon class="icon-vital">edit_note</mat-icon>
+                         <span>Modified</span>
+                       </div>
+                       <div class="changes-actions">
+                         <button class="btn-dashboard revert" (click)="revertChanges()" title="Discard all edits">
+                           <mat-icon>undo</mat-icon> Revert
+                         </button>
+                         <button class="btn-dashboard save" (click)="saveToInput()" title="Apply edits to Input Stream">
+                           <mat-icon>save</mat-icon> Save
+                         </button>
+                         <button class="btn-dashboard export" (click)="exportJson()" title="Download as JSON file">
+                           <mat-icon>download</mat-icon> Export
+                         </button>
+                         <button class="btn-dashboard copy" (click)="copyJson()" title="Copy modified JSON">
+                           <mat-icon>content_copy</mat-icon> Copy
+                         </button>
+                       </div>
+                     </div>
+
                      <app-explorer-node 
                        *ngIf="getFilteredData()" 
                        [key]="'Root'" 
@@ -186,8 +298,11 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                        (jumpTo)="handleJump($event)"
                        (replaceAll)="openReplaceModal($event)"
                        (viewInstances)="viewInstances($event)"
-                       (toggleBookmark)="toggleBookmark($event)">
+                       (toggleBookmark)="toggleBookmark($event)"
+                       (select)="onNodeSelect($event)"
+                       (updateValue)="handleValueUpdate($event)">
                      </app-explorer-node>
+                     
                      <div *ngIf="!explorerData" class="empty-state">
                         <mat-icon class="empty-icon">account_tree</mat-icon>
                         <p class="empty-text">Mapping required</p>
@@ -225,7 +340,7 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                         </button>
                       </div>
 
-                      <label class="select-all-row" *ngIf="instancesList.length > 0">
+                      <label class="select-all-row" *ngIf="editMode && instancesList.length > 0">
                         <input type="checkbox" [checked]="isAllInstancesSelected()" (change)="toggleSelectAllInstances()">
                         <span>Select All</span>
                       </label>
@@ -234,9 +349,9 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                     <div class="instances-list">
                       <div *ngFor="let inst of instancesList" 
                            class="instance-card" 
-                           [class.selected]="isInstanceSelected(inst.path)"
+                           [class.selected]="editMode && isInstanceSelected(inst.path)"
                            (click)="jumpToInstance(inst.path)">
-                        <div class="instance-select" (click)="$event.stopPropagation()">
+                        <div class="instance-select" *ngIf="editMode" (click)="$event.stopPropagation()">
                           <input type="checkbox" 
                                  [checked]="isInstanceSelected(inst.path)" 
                                  (change)="toggleInstanceSelection(inst.path)">
@@ -261,10 +376,10 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                 </aside>
 
                 <!-- JSON Prettifier Output -->
-                <div *ngIf="selectedTabIndex === 1" [innerHTML]="jsonOutput" class="whitespace-pre"></div>
+                <div *ngIf="selectedTabIndex === 1" [innerHTML]="jsonOutput" class="whitespace-pre p-4 h-full overflow-auto custom-scrollbar"></div>
 
                 <!-- Tool Lookup Output -->
-                <div *ngIf="selectedTabIndex === 2" class="address-list">
+                <div *ngIf="selectedTabIndex === 2" class="address-list p-4 h-full overflow-auto custom-scrollbar">
                   <div *ngIf="toolAddresses.length === 0" class="empty-state">
                     <mat-icon class="empty-icon">search_off</mat-icon>
                     <p class="empty-text">No addresses discovered</p>
@@ -327,6 +442,8 @@ export class App implements OnInit {
   currentExpansionPath: string[] = [];
   stripMetadata = false;
   editMode = false;
+  hasChanges = false;
+  originalExplorerData: any = null;
 
   showReplaceModal = false;
   replaceOldValue: any = null;
@@ -338,8 +455,19 @@ export class App implements OnInit {
   instanceValue: any = null;
   selectedInstances: Set<string> = new Set();
 
+  activeFileId = '';
+  files: ExplorerFile[] = [];
+
   bookmarks: { path: string[], label: string }[] = [];
   showInputPanel = true;
+  bookmarksWidth = 330;
+  filesHeight = 300;
+  isResizing = false;
+  isResizingVertical = false;
+
+  currentSelectedPath: string[] = [];
+  currentSelectedDisplayPath: string[] = [];
+  isInputLocked = false;
 
   ngOnInit() {
     // Load settings
@@ -348,7 +476,15 @@ export class App implements OnInit {
       const settings = JSON.parse(saved);
       this.stripMetadata = !!settings.stripMetadata;
       this.editMode = !!settings.editMode;
-      this.bookmarks = settings.bookmarks || [];
+      this.bookmarksWidth = settings.bookmarksWidth || 330;
+      this.files = settings.files || [];
+      this.activeFileId = settings.activeFileId || '';
+    }
+
+    if (this.files.length === 0) {
+      this.createNewFile();
+    } else if (this.activeFileId) {
+      this.loadFileData(this.activeFileId);
     }
 
     // 1. Initial check for data parameter (?) in search string
@@ -396,13 +532,28 @@ export class App implements OnInit {
       let input = this.jsonInput.trim();
       if (!input) return;
 
-      // Auto-clear bookmarks when new data is processed
+      // 1. Sync the current input to the active file object immediately
+      const current = this.files.find(f => f.id === this.activeFileId);
+      if (current) {
+        current.jsonInput = input;
+        // Baseline capture: if first time, or manually entered after being empty
+        if (!current.originalJsonInput) {
+          current.originalJsonInput = input;
+        }
+      }
+
+      // 2. Lock the input once processed
+      this.isInputLocked = true;
+
+      // 3. Clear bookmarks for this new "crunch"
       this.clearBookmarks();
 
       input = this.dataService.decodeIfBase64(input);
       const cleanText = this.stripMetadata ? this.dataService.stripMetadata(input) : input;
 
       this.explorerData = null;
+      this.originalExplorerData = null;
+      this.hasChanges = false;
       this.toolAddresses = [];
 
       if (this.selectedTabIndex === 0) { // Explore
@@ -410,6 +561,15 @@ export class App implements OnInit {
         if (jsonStr.startsWith('"') && !jsonStr.startsWith('{')) jsonStr = '{' + jsonStr + '}';
         const data = JSON.parse(jsonStr);
         this.explorerData = this.dataService.recursivelyDecodeData(data);
+        // Store a deep copy for reversion
+        this.originalExplorerData = JSON.parse(JSON.stringify(this.explorerData));
+        
+        // Update file object with new mapped data
+        if (current) {
+          current.explorerData = this.explorerData;
+          current.originalExplorerData = this.originalExplorerData;
+        }
+        
         this.showMessage("Data structure mapped");
       } else if (this.selectedTabIndex === 1) { // Format
         let jsonToParse = cleanText;
@@ -427,6 +587,10 @@ export class App implements OnInit {
           this.showMessage("No addresses found", "error");
         }
       }
+      
+      // 4. Persist the entire file collection
+      this.saveSettings();
+
     } catch (e: any) {
       console.error("Processing error:", e);
       this.showMessage("Processing failed: " + e.message, "error");
@@ -517,8 +681,191 @@ export class App implements OnInit {
     localStorage.setItem('explorer_settings', JSON.stringify({
       stripMetadata: this.stripMetadata,
       editMode: this.editMode,
-      bookmarks: this.bookmarks
+      bookmarksWidth: this.bookmarksWidth,
+      files: this.files,
+      activeFileId: this.activeFileId
     }));
+  }
+
+  createNewFile() {
+    const newFile: ExplorerFile = {
+      id: 'file_' + new Date().getTime(),
+      name: 'Untitled Session',
+      jsonInput: '',
+      originalJsonInput: '',
+      explorerData: null,
+      originalExplorerData: null,
+      bookmarks: [],
+      hasChanges: false,
+      stripMetadata: false
+    };
+    this.files.push(newFile);
+    this.switchFile(newFile.id);
+  }
+
+  switchFile(id: string) {
+    if (this.activeFileId) {
+      const current = this.files.find(f => f.id === this.activeFileId);
+      if (current) {
+        current.jsonInput = this.jsonInput;
+        current.explorerData = this.explorerData;
+        current.originalExplorerData = this.originalExplorerData;
+        current.bookmarks = this.bookmarks;
+        current.hasChanges = this.hasChanges;
+        current.stripMetadata = this.stripMetadata;
+      }
+    }
+
+    this.activeFileId = id;
+    this.loadFileData(id);
+    this.saveSettings();
+  }
+
+  private loadFileData(id: string) {
+    const file = this.files.find(f => f.id === id);
+    if (file) {
+      this.jsonInput = file.jsonInput || '';
+      this.explorerData = file.explorerData || null;
+      this.originalExplorerData = file.originalExplorerData || null;
+      this.bookmarks = file.bookmarks || [];
+      this.hasChanges = file.hasChanges || false;
+      this.stripMetadata = file.stripMetadata || false;
+      
+      this.explorerSearchQuery = '';
+      this.currentExpansionPath = [];
+      this.currentSelectedPath = [];
+      this.currentSelectedDisplayPath = [];
+      this.isInputLocked = !!this.explorerData; 
+    }
+  }
+
+  deleteFile(id: string) {
+    const index = this.files.findIndex(f => f.id === id);
+    if (index > -1) {
+      this.files.splice(index, 1);
+      if (this.activeFileId === id) {
+        if (this.files.length > 0) {
+          this.switchFile(this.files[0].id);
+        } else {
+          this.createNewFile();
+        }
+      } else {
+        this.saveSettings();
+      }
+    }
+  }
+
+  renameFile(id: string, newName: string) {
+    const file = this.files.find(f => f.id === id);
+    if (file) {
+      file.name = newName;
+      this.saveSettings();
+    }
+  }
+
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  onFileDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        const newFile: ExplorerFile = {
+          id: 'file_' + new Date().getTime(),
+          name: file.name,
+          jsonInput: content,
+          originalJsonInput: content,
+          explorerData: null,
+          originalExplorerData: null,
+          bookmarks: [],
+          hasChanges: false,
+          stripMetadata: false
+        };
+        this.files.push(newFile);
+        this.switchFile(newFile.id);
+        this.processInput();
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  handleValueUpdate(event: { path: string[], value: any }) {
+    if (!this.explorerData) return;
+    this.explorerData = this.dataService.replaceAtPaths(this.explorerData, [event.path], event.value);
+    this.hasChanges = true;
+    
+    const current = this.files.find(f => f.id === this.activeFileId);
+    if (current) {
+      current.explorerData = this.explorerData;
+      current.hasChanges = true;
+    }
+    
+    this.saveSettings();
+    this.showMessage("Value updated locally");
+  }
+
+  revertChanges() {
+    const current = this.files.find(f => f.id === this.activeFileId);
+    if (current && current.originalJsonInput) {
+      this.jsonInput = current.originalJsonInput;
+      this.processInput();
+      this.hasChanges = false;
+      if (current) current.hasChanges = false;
+      this.saveSettings();
+      this.showMessage("Changes reverted to original");
+    }
+  }
+
+  saveToInput() {
+    if (!this.explorerData) return;
+    
+    const current = this.files.find(f => f.id === this.activeFileId);
+    if (current && current.name === 'Untitled Session') {
+      const newName = window.prompt("Enter a name for this session:", "My JSON Data");
+      if (newName) current.name = newName;
+    }
+
+    const json = JSON.stringify(this.explorerData, null, 2);
+    this.jsonInput = json;
+    
+    if (current) {
+      current.originalJsonInput = json; // New baseline
+      current.jsonInput = json;
+      current.hasChanges = false;
+    }
+
+    this.hasChanges = false;
+    this.saveSettings();
+    this.showMessage("Changes saved to session");
+  }
+
+  exportJson() {
+    if (!this.explorerData) return;
+    const json = JSON.stringify(this.explorerData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `exported_data_${new Date().getTime()}.json`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    this.showMessage("JSON Exported");
+  }
+
+  copyJson() {
+    if (!this.explorerData) return;
+    const json = JSON.stringify(this.explorerData, null, 2);
+    navigator.clipboard.writeText(json).then(() => {
+      this.showMessage("JSON Copied to clipboard");
+    });
   }
 
   toggleBookmark(event: { path: string[], data: any }) {
@@ -534,7 +881,6 @@ export class App implements OnInit {
       if (typeof event.data === 'object' && event.data !== null) {
         descriptor = this.dataService.getDescriptor(event.data, null);
       } else {
-        // For primitives, just show the value (truncated if very long)
         const valStr = String(event.data);
         descriptor = valStr.length > 40 ? valStr.substring(0, 40) + '...' : valStr;
       }
@@ -582,7 +928,7 @@ export class App implements OnInit {
 
   openReplaceModal(event: { oldValue: any, newValue: any }) {
     this.replaceOldValue = event.oldValue;
-    this.replaceNewValue = event.oldValue; // Default to same value for easy editing
+    this.replaceNewValue = event.oldValue; 
     this.replaceCount = this.dataService.countOccurrences(this.explorerData, event.oldValue);
     this.showReplaceModal = true;
   }
@@ -594,19 +940,24 @@ export class App implements OnInit {
     if (typeof this.replaceOldValue === 'number') finalValue = Number(this.replaceNewValue);
     if (typeof this.replaceOldValue === 'boolean') finalValue = String(this.replaceNewValue).toLowerCase() === 'true';
 
-    // If sidebar is open, check if we are doing selective replace
     if (this.showInstancesSidebar && this.selectedInstances.size < this.instancesList.length) {
       const selectedPaths = Array.from(this.selectedInstances).map(ps => JSON.parse(ps));
       this.explorerData = this.dataService.replaceAtPaths(this.explorerData, selectedPaths, finalValue);
       this.showMessage(`Replaced ${this.selectedInstances.size} selected instances`);
-      // Refresh list
       this.viewInstances(this.instanceValue);
     } else {
       this.explorerData = this.dataService.replaceAll(this.explorerData, this.replaceOldValue, finalValue);
-      this.showMessage(`Replaced ${this.replaceCount} instances`);
+      this.showMessage(`Replaced all ${this.replaceCount} instances`);
       if (this.showInstancesSidebar) this.viewInstances(this.instanceValue);
     }
     
+    const current = this.files.find(f => f.id === this.activeFileId);
+    if (current) {
+      current.explorerData = this.explorerData;
+      current.hasChanges = true;
+    }
+    this.hasChanges = true;
+    this.saveSettings();
     this.showReplaceModal = false;
   }
 
@@ -617,7 +968,6 @@ export class App implements OnInit {
   viewInstances(value: any) {
     this.instanceValue = value;
     this.instancesList = this.dataService.findAllInstances(this.explorerData, value, ['Root']);
-    // Default to all selected
     this.selectedInstances = new Set(this.instancesList.map(inst => JSON.stringify(inst.path)));
     this.showInstancesSidebar = true;
   }
@@ -653,7 +1003,81 @@ export class App implements OnInit {
 
   jumpToInstance(path: string[]) {
     this.handleJump(path);
-    // Optional: close sidebar on jump? User might want to stay. 
-    // Let's keep it open for easy multi-jump.
+  }
+
+  onNodeSelect(event: { path: string[], data: any }) {
+    this.currentSelectedPath = event.path;
+    const displayPath: string[] = [];
+    for (let i = 0; i < event.path.length; i++) {
+      const segment = event.path[i];
+      if (segment === 'Root') {
+        displayPath.push('Root');
+        continue;
+      }
+      const parentPath = event.path.slice(0, i);
+      const parentData = this.getValueByPath(this.explorerData, parentPath);
+      const currentData = this.getValueByPath(this.explorerData, event.path.slice(0, i + 1));
+      const isParentArr = parentData && (Array.isArray(parentData) || parentData.__wasArray);
+      if (isParentArr && currentData && typeof currentData === 'object') {
+        displayPath.push(this.dataService.getDescriptor(currentData, segment));
+      } else {
+        displayPath.push(segment);
+      }
+    }
+    this.currentSelectedDisplayPath = displayPath;
+  }
+
+  private getValueByPath(obj: any, path: string[]): any {
+    let current = obj;
+    for (const segment of path) {
+      if (!current) return null;
+      current = current[segment];
+    }
+    return current;
+  }
+
+  startResizing(event: MouseEvent) {
+    this.isResizing = true;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = this.bookmarksWidth;
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!this.isResizing) return;
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = startWidth + deltaX;
+      if (newWidth >= 150 && newWidth <= 600) {
+        this.bookmarksWidth = newWidth;
+      }
+    };
+    const onMouseUp = () => {
+      this.isResizing = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      this.saveSettings();
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  startVerticalResize(event: MouseEvent) {
+    this.isResizingVertical = true;
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = this.filesHeight;
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!this.isResizingVertical) return;
+      const deltaY = moveEvent.clientY - startY;
+      const newHeight = startHeight + deltaY;
+      if (newHeight >= 100 && newHeight <= 800) {
+        this.filesHeight = newHeight;
+      }
+    };
+    const onMouseUp = () => {
+      this.isResizingVertical = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
   }
 }

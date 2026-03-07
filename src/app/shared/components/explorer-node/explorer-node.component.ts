@@ -36,7 +36,30 @@ import { DataService } from '../../../core/services/data.service';
         <ng-template #valueTemplate>
           <div class="node-value-group" (dblclick)="onValueDblClick($event)">
             <span class="colon">:</span>
-            <span [ngClass]="getValueClass()" class="node-value truncate">{{ getValueText() }}</span>
+            
+            <!-- Inline Editor -->
+            <ng-container *ngIf="editMode; else viewValueTemplate">
+              <!-- Boolean Toggle -->
+              <div *ngIf="isBoolean" class="inline-toggle" (click)="toggleBoolean($event)">
+                <div class="toggle-track" [class.active]="data">
+                  <div class="toggle-thumb"></div>
+                </div>
+                <span [ngClass]="getValueClass()">{{ data }}</span>
+              </div>
+              
+              <!-- Text/Number Input -->
+              <input *ngIf="!isBoolean" 
+                     [type]="isNumber ? 'number' : 'text'"
+                     [value]="data"
+                     (input)="onInputChange($event)"
+                     (click)="$event.stopPropagation()"
+                     class="inline-input"
+                     [ngClass]="getValueClass()">
+            </ng-container>
+
+            <ng-template #viewValueTemplate>
+              <span [ngClass]="getValueClass()" class="node-value truncate">{{ getValueText() }}</span>
+            </ng-template>
             
             <div class="node-actions">
               <button class="node-copy-btn" (click)="$event.stopPropagation(); copyValue($event)" title="Copy value">
@@ -69,7 +92,9 @@ import { DataService } from '../../../core/services/data.service';
           (jumpTo)="onChildJump($event)"
           (replaceAll)="onChildReplaceAll($event)"
           (viewInstances)="onChildViewInstances($event)"
-          (toggleBookmark)="onChildToggleBookmark($event)">
+          (toggleBookmark)="onChildToggleBookmark($event)"
+          (select)="onChildSelect($event)"
+          (updateValue)="onChildUpdate($event)">
         </app-explorer-node>
       </div>
     </div>
@@ -91,6 +116,8 @@ export class ExplorerNodeComponent implements OnChanges {
   @Output() replaceAll = new EventEmitter<{ oldValue: any, newValue: any }>();
   @Output() viewInstances = new EventEmitter<any>();
   @Output() toggleBookmark = new EventEmitter<{ path: string[], data: any }>();
+  @Output() select = new EventEmitter<{ path: string[], data: any }>();
+  @Output() updateValue = new EventEmitter<{ path: string[], value: any }>();
   
   expanded = false;
   isTarget = false;
@@ -100,6 +127,29 @@ export class ExplorerNodeComponent implements OnChanges {
     if (!this.bookmarks || !this.fullPath) return false;
     const myPathStr = JSON.stringify(this.fullPath);
     return this.bookmarks.some(b => JSON.stringify(b.path) === myPathStr);
+  }
+
+  get isBoolean(): boolean {
+    return typeof this.data === 'boolean';
+  }
+
+  get isNumber(): boolean {
+    return typeof this.data === 'number';
+  }
+
+  toggleBoolean(event: MouseEvent) {
+    event.stopPropagation();
+    this.updateValue.emit({ path: this.fullPath, value: !this.data });
+  }
+
+  onInputChange(event: Event) {
+    const val = (event.target as HTMLInputElement).value;
+    const typedVal = this.isNumber ? Number(val) : val;
+    this.updateValue.emit({ path: this.fullPath, value: typedVal });
+  }
+
+  onChildUpdate(event: { path: string[], value: any }) {
+    this.updateValue.emit(event);
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -191,6 +241,10 @@ export class ExplorerNodeComponent implements OnChanges {
     this.toggleBookmark.emit(event);
   }
 
+  onChildSelect(event: { path: string[], data: any }) {
+    this.select.emit(event);
+  }
+
   getFullPath(childKey: string): string[] {
     return [...this.fullPath, childKey];
   }
@@ -228,6 +282,8 @@ export class ExplorerNodeComponent implements OnChanges {
       event.stopPropagation();
       this.expanded = !this.expanded;
     }
+    // Always emit select when any node row is clicked
+    this.select.emit({ path: this.fullPath, data: this.data });
   }
 
   getDisplayKey(): string {

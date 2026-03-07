@@ -130,6 +130,58 @@
   color: var(--color-procedure-blue);
 }
 
+.inline-input {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.25rem;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0.1rem 0.3rem;
+  outline: none;
+  min-width: 50px;
+}
+
+.inline-input:focus {
+  border-color: var(--color-procedure-blue);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.toggle-track {
+  width: 24px;
+  height: 12px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.toggle-track.active {
+  background-color: var(--color-procedure-blue);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.toggle-track.active .toggle-thumb {
+  transform: translateX(12px);
+}
+
 .node-instances-btn {
   background: transparent;
   border: none;

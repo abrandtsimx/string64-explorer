@@ -66,15 +66,15 @@
   cursor: default;
   user-select: none;
   
-  /* Always use gradient to prevent black flicker on state switch */
+  /* Use Instrument Grey as the base with Procedure Blue glow */
   background: radial-gradient(
-    circle 100px at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
-    var(--color-vital-red) 0%,
-    white 80%
+    circle 70px at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+    var(--color-procedure-blue) 0%,
+    var(--color-instrument-grey) 80%
   );
   
   /* Fallback color */
-  background-color: white;
+  background-color: var(--color-instrument-grey);
   
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -83,8 +83,8 @@
   transition: none;
 }
 
-/* Ensure color stays white if mouse is far away */
+/* Ensure color stays Instrument Grey if mouse is far away */
 .title-group:not(:hover) .main-title {
-  background: white;
+  background: var(--color-instrument-grey);
   -webkit-background-clip: text;
 }
