@@ -1,13 +1,27 @@
 @import "@angular/material/prebuilt-themes/indigo-pink.css";
 
 :root {
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: 'Lato', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-code: 'Fira Code', monospace;
   
+  /* SimX Brand Colors */
+  --color-midnight-scrub: #091d3c;
+  --color-vital-red: #e31f2f;
+  --color-clinical-indigo: #0f2d5b;
+  --color-procedure-blue: #007cc0;
+  --color-simx-purple: #463858;
+  --color-sterile-white: #ffffff;
+  --color-instrument-grey: #f0f2f4;
+  --color-black-dusk: #18171d;
+
+  --color-primary: var(--color-midnight-scrub);
+  --color-accent: var(--color-vital-red);
+  --color-secondary: var(--color-procedure-blue);
+
   --color-indigo-50: #f5f7ff;
-  --color-indigo-400: #818cf8;
-  --color-indigo-500: #6366f1;
-  --color-indigo-600: #4f46e5;
+  --color-indigo-400: var(--color-procedure-blue);
+  --color-indigo-500: var(--color-clinical-indigo);
+  --color-indigo-600: var(--color-midnight-scrub);
   --color-blue-400: #60a5fa;
   --color-blue-500: #3b82f6;
   --color-blue-600: #2563eb;
@@ -20,10 +34,10 @@
   --color-slate-700: #334155;
   --color-slate-800: #1e293b;
   --color-slate-900: #0f172a;
-  --color-slate-950: #020617;
+  --color-slate-950: var(--color-black-dusk);
   --color-emerald-400: #34d399;
   --color-emerald-500: #10b981;
-  --color-rose-400: #fb7185;
+  --color-rose-400: var(--color-vital-red);
   --color-rose-600: #e11d48;
 }
 
@@ -116,11 +130,11 @@ body {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.2); }
 
-.token-string { color: #a5b4fc; }
-.token-number { color: #f472b6; }
-.token-boolean { color: #fbbf24; }
-.token-key { color: #cbd5e1; font-weight: 600; }
-.token-null { color: #f87171; }
+.token-string { color: var(--color-procedure-blue); }
+.token-number { color: var(--color-vital-red); }
+.token-boolean { color: #facc15; }
+.token-key { color: var(--color-sterile-white); font-weight: 700; }
+.token-null { color: var(--color-vital-red); opacity: 0.8; }
 .code-font { font-family: var(--font-code); }
 
 @keyframes shimmer {

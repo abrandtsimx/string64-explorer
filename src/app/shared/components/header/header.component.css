@@ -8,7 +8,7 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 1rem;
-  background-color: rgba(15, 23, 42, 0.4);
+  background-color: var(--color-midnight-scrub);
   backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 1rem 1.5rem;
@@ -35,32 +35,31 @@
 
 .logo-box {
   position: relative;
-  padding: 0.6rem;
-  background: linear-gradient(to bottom right, var(--color-indigo-500), var(--color-blue-600));
+  padding: 0.4rem;
+  background: linear-gradient(to bottom right, var(--color-clinical-indigo), var(--color-midnight-scrub));
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.logo-box mat-icon {
-  font-size: 1.5rem;
-  width: 1.5rem;
-  height: 1.5rem;
-  color: white;
+.brand-logo {
+  height: 2.5rem;
+  width: auto;
 }
 
 .main-title {
   font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-weight: 900;
+  letter-spacing: 0.05em;
   color: white;
   margin: 0;
+  font-family: 'Lato', sans-serif;
 }
 
 .gradient-text {
-  background: linear-gradient(to right, var(--color-indigo-400), var(--color-blue-400));
+  background: linear-gradient(to right, var(--color-sterile-white), var(--color-procedure-blue));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

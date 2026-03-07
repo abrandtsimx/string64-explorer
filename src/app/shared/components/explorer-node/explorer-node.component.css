@@ -37,7 +37,7 @@
 }
 
 .node-row:hover .arrow-icon {
-  color: var(--color-indigo-400);
+  color: var(--color-vital-red);
 }
 
 .arrow-icon.rotated {
@@ -52,7 +52,7 @@
 }
 
 .node-key.array-item-label {
-  color: var(--color-indigo-300);
+  color: var(--color-procedure-blue);
 }
 
 .node-meta {
@@ -73,8 +73,8 @@
 
 .decoded-tag {
   font-size: 8px;
-  background-color: rgba(99, 102, 241, 0.1);
-  color: var(--color-indigo-400);
+  background-color: rgba(227, 31, 47, 0.1);
+  color: var(--color-vital-red);
   padding: 0.05rem 0.25rem;
   border-radius: 0.2rem;
   font-weight: 700;
@@ -98,6 +98,135 @@
   font-family: var(--font-code);
 }
 
+.node-copy-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-slate-600);
+  cursor: pointer;
+  padding: 0.1rem;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: all 0.15s ease;
+  margin-left: 0.25rem;
+}
+
+.node-copy-btn mat-icon {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+}
+
+.node-row:hover .node-copy-btn {
+  opacity: 1;
+}
+
+.node-copy-btn:hover {
+  color: var(--color-procedure-blue);
+}
+
+.node-instances-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-slate-600);
+  cursor: pointer;
+  padding: 0.1rem;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+
+.node-instances-btn mat-icon {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+}
+
+.node-row:hover .node-instances-btn {
+  opacity: 1;
+}
+
+.node-instances-btn:hover {
+  color: var(--color-procedure-blue);
+}
+
+.node-bookmark-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-slate-600);
+  cursor: pointer;
+  padding: 0.1rem;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+
+.node-bookmark-btn mat-icon {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+}
+
+.node-row:hover .node-bookmark-btn {
+  opacity: 1;
+}
+
+.node-bookmark-btn:hover {
+  color: var(--color-procedure-blue);
+}
+
+.node-bookmark-btn.active {
+  opacity: 1;
+  color: var(--color-vital-red);
+}
+
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.node-edit-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-slate-600);
+  cursor: pointer;
+  padding: 0.1rem;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+
+.node-edit-btn mat-icon {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+}
+
+.node-row:hover .node-edit-btn {
+  opacity: 1;
+}
+
+.node-edit-btn:hover {
+  color: var(--color-procedure-blue);
+}
+
 .children-container {
   margin-left: 0.75rem;
+}
+
+.target-highlight > .node-row {
+  animation: flash-highlight 2s ease-out;
+}
+
+@keyframes flash-highlight {
+  0% { background-color: transparent; }
+  10% { background-color: var(--color-procedure-blue); color: white; }
+  20% { background-color: transparent; }
+  30% { background-color: var(--color-procedure-blue); color: white; }
+  40% { background-color: transparent; }
+  100% { background-color: transparent; }
 }

@@ -12,7 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
       <div class="header-card">
         <div class="brand-section">
           <div class="logo-box">
-            <mat-icon>dataset</mat-icon>
+            <img src="simx-logo.png" alt="SimX Logo" class="brand-logo">
           </div>
 
           <div class="title-group">

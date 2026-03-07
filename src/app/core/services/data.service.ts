@@ -96,4 +96,184 @@ export class DataService {
       return '<span class="' + cls + '">' + match + '</span>';
     });
   }
+
+  filterData(data: any, query: string): any {
+    if (!query) return data;
+    const lowerQuery = query.toLowerCase();
+
+    if (typeof data !== 'object' || data === null) {
+      // Check if value matches
+      const valMatches = String(data).toLowerCase().includes(lowerQuery);
+      return valMatches ? data : undefined;
+    }
+
+    if (Array.isArray(data)) {
+      const filteredResult: any = {
+        __wasArray: true,
+        __originalLength: data.length,
+        __autoExpand: true // Arrays with matches should always expand
+      };
+      let hasMatch = false;
+      
+      for (let i = 0; i < data.length; i++) {
+        const filteredItem = this.filterData(data[i], query);
+        if (filteredItem !== undefined) {
+          filteredResult[i] = filteredItem;
+          hasMatch = true;
+        }
+      }
+      
+      return hasMatch ? filteredResult : undefined;
+    }
+
+    // It's an object
+    const filteredObj: any = {};
+    let hasMatchingChild = false;
+
+    // Preserve internal markers
+    if (data.__wasBase64) filteredObj.__wasBase64 = true;
+
+    for (const k in data) {
+      if (k.startsWith('__')) continue;
+
+      const filteredVal = this.filterData(data[k], query);
+      if (filteredVal !== undefined) {
+        filteredObj[k] = filteredVal;
+        hasMatchingChild = true;
+      }
+    }
+
+    // If object has matching children
+    if (hasMatchingChild) {
+      // Mark for auto-expansion
+      filteredObj.__autoExpand = true;
+      return filteredObj;
+    }
+
+    return undefined;
+  }
+
+  replaceAll(data: any, oldValue: any, newValue: any): any {
+    if (data === oldValue) return newValue;
+    
+    if (typeof data !== 'object' || data === null) {
+      return data;
+    }
+
+    if (Array.isArray(data)) {
+      return data.map(item => this.replaceAll(item, oldValue, newValue));
+    }
+
+    const newObj: any = {};
+    for (const key in data) {
+      newObj[key] = this.replaceAll(data[key], oldValue, newValue);
+    }
+    return newObj;
+  }
+
+  countOccurrences(data: any, value: any): number {
+    let count = 0;
+    if (data === value) count++;
+    
+    if (typeof data === 'object' && data !== null) {
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          count += this.countOccurrences(item, value);
+        }
+      } else {
+        for (const key in data) {
+          // Skip internal markers
+          if (key.startsWith('__')) continue;
+          count += this.countOccurrences(data[key], value);
+        }
+      }
+    }
+    return count;
+  }
+
+  findAllInstances(data: any, value: any, path: string[] = ['Root'], displayPath: string[] = ['Root'], parent: any = null): any[] {
+    let results: any[] = [];
+    if (data === value) {
+      results.push({
+        path: [...path],
+        displayPath: [...displayPath],
+        context: this.getInstanceContext(parent, path, value)
+      });
+    }
+    
+    if (typeof data === 'object' && data !== null) {
+      const isArr = Array.isArray(data) || data.__wasArray;
+      const keys = Object.keys(data).filter(k => !k.startsWith('__'));
+
+      for (const key of keys) {
+        const childData = data[key];
+        let label = key;
+
+        // If we're inside an array, try to get a better label for the object items
+        if (isArr && typeof childData === 'object' && childData !== null) {
+          label = this.getDescriptor(childData, key);
+        }
+
+        results = results.concat(
+          this.findAllInstances(childData, value, [...path, key], [...displayPath, label], data)
+        );
+      }
+    }
+    return results;
+  }
+
+  public getDescriptor(obj: any, fallback: string | null): string {
+    if (!obj || typeof obj !== 'object') return fallback || '';
+
+    const keys = Object.keys(obj);
+    const idKey = keys.find(k => k.toLowerCase() === 'id' || k.toLowerCase().includes('id'));
+    const nameKey = keys.find(k => k.toLowerCase() === 'name');
+    const typeKey = keys.find(k => k.toLowerCase() === 'type');
+    
+    const idVal = idKey ? obj[idKey] : null;
+    const nameVal = nameKey ? obj[nameKey] : null;
+    const typeVal = typeKey ? obj[typeKey] : null;
+
+    const isGuid = (val: any) => typeof val === 'string' && 
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+    const formatId = (val: any) => {
+      const s = String(val);
+      if (isGuid(s)) return s.substring(0, 4) + '...';
+      return s;
+    };
+
+    let result = '';
+    // Priority Rule: Name > Type > Id (formatted)
+    if (nameVal) {
+      result = String(nameVal);
+    } else if (typeVal) {
+      result = String(typeVal);
+    } else if (idVal) {
+      result = formatId(idVal);
+    } else {
+      result = fallback || '';
+    }
+
+    // Cap and ellipsis at 24 characters
+    if (result.length > 24) {
+      result = result.substring(0, 24) + '...';
+    }
+    
+    return result;
+  }
+
+  private getInstanceContext(parent: any, path: string[], value: any): string {
+    const lastKey = path[path.length - 1];
+    if (!parent) return lastKey;
+
+    if (typeof parent === 'object' && !Array.isArray(parent)) {
+      const descriptor = this.getDescriptor(parent, lastKey);
+      if (descriptor !== lastKey && descriptor !== String(value)) {
+         return `${lastKey} (in ${descriptor})`;
+      }
+    }
+    
+    return lastKey;
+  }
 }

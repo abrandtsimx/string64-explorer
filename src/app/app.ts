@@ -27,9 +27,36 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
       <div class="main-layout">
         <app-header></app-header>
 
-        <main class="workbench-grid">
+        <main class="workbench-grid" [class.input-collapsed]="!showInputPanel">
+          <!-- Bookmarks Sidebar (Left) -->
+          <aside class="bookmarks-sidebar">
+            <div class="sidebar-header">
+              <div class="header-title">
+                <mat-icon>bookmarks</mat-icon>
+                <span>Bookmarks</span>
+              </div>
+              <button *ngIf="bookmarks.length > 0" class="btn-clear-all" (click)="clearBookmarks()" title="Clear all bookmarks">
+                <mat-icon>delete_sweep</mat-icon>
+              </button>
+            </div>
+            <div class="sidebar-content custom-scrollbar">
+              <div *ngIf="bookmarks.length === 0" class="empty-state mini">
+                <mat-icon class="empty-icon">bookmark_border</mat-icon>
+                <p class="empty-text">No bookmarks</p>
+              </div>
+              <div class="bookmarks-list">
+                <div *ngFor="let bm of bookmarks" class="bookmark-card" (click)="handleJump(bm.path)">
+                  <span class="bookmark-label">{{ bm.label }}</span>
+                  <button class="btn-remove-bm" (click)="$event.stopPropagation(); removeBookmark(bm.path)">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </aside>
+
           <!-- Input Terminal Panel -->
-          <section class="panel">
+          <section class="panel" *ngIf="showInputPanel">
             <div class="panel-header">
               <div class="header-title-group">
                 <div class="icon-box">
@@ -41,6 +68,13 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
                 </div>
               </div>
               <div class="header-actions">
+                <label class="setting-toggle" title="Strip Metadata from JSON">
+                  <input type="checkbox" [(ngModel)]="stripMetadata" (change)="saveSettings(); processInput()">
+                  <span class="toggle-label">Strip</span>
+                </label>
+                <button (click)="showInputPanel = false" class="btn-icon" title="Collapse Panel">
+                  <mat-icon>keyboard_double_arrow_left</mat-icon>
+                </button>
                 <button (click)="clearAll()" class="btn-icon" title="Clear All">
                   <mat-icon>delete_sweep</mat-icon>
                 </button>
@@ -57,7 +91,7 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
 
             <div class="panel-footer">
               <button (click)="processInput()" class="action-button">
-                <span class="relative">{{ getBtnText() }}</span>
+                <span class="relative">Process</span>
                 <mat-icon class="relative">bolt</mat-icon>
               </button>
             </div>
@@ -66,33 +100,38 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
           <!-- Output/Explorer Panel -->
           <section class="panel">
             <div class="panel-header">
-              <mat-tab-group 
-                [(selectedIndex)]="selectedTabIndex" 
-                (selectedIndexChange)="onTabChange($event)"
-                class="custom-tabs flex-grow"
-                animationDuration="400ms">
-                
-                <mat-tab>
-                  <ng-template mat-tab-label>
-                    <mat-icon style="margin-right: 8px;">account_tree</mat-icon>
-                    <span>Explore</span>
-                  </ng-template>
-                </mat-tab>
+              <div class="flex items-center gap-2">
+                <button *ngIf="!showInputPanel" (click)="showInputPanel = true" class="btn-icon" title="Expand Input Stream">
+                  <mat-icon>keyboard_double_arrow_right</mat-icon>
+                </button>
+                <mat-tab-group 
+                  [(selectedIndex)]="selectedTabIndex" 
+                  (selectedIndexChange)="onTabChange($event)"
+                  class="custom-tabs flex-grow"
+                  animationDuration="400ms">
+                  
+                  <mat-tab>
+                    <ng-template mat-tab-label>
+                      <mat-icon style="margin-right: 8px;">account_tree</mat-icon>
+                      <span>Explore</span>
+                    </ng-template>
+                  </mat-tab>
 
-                <mat-tab>
-                  <ng-template mat-tab-label>
-                    <mat-icon style="margin-right: 8px;">auto_fix_high</mat-icon>
-                    <span>Format</span>
-                  </ng-template>
-                </mat-tab>
-                
-                <mat-tab>
-                  <ng-template mat-tab-label>
-                    <mat-icon style="margin-right: 8px;">gps_fixed</mat-icon>
-                    <span>Extract</span>
-                  </ng-template>
-                </mat-tab>
-              </mat-tab-group>
+                  <mat-tab>
+                    <ng-template mat-tab-label>
+                      <mat-icon style="margin-right: 8px;">auto_fix_high</mat-icon>
+                      <span>Format</span>
+                    </ng-template>
+                  </mat-tab>
+                  
+                  <mat-tab>
+                    <ng-template mat-tab-label>
+                      <mat-icon style="margin-right: 8px;">gps_fixed</mat-icon>
+                      <span>Extract</span>
+                    </ng-template>
+                  </mat-tab>
+                </mat-tab-group>
+              </div>
 
               <button (click)="copyToClipboard()" class="btn-secondary">
                 <mat-icon style="font-size: 14px; width: 14px; height: 14px;">content_copy</mat-icon>
@@ -110,13 +149,98 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
 
               <div class="output-area custom-scrollbar">
                 <!-- Explorer Output -->
-                <div *ngIf="selectedTabIndex === 0" class="h-full">
-                   <app-explorer-node *ngIf="explorerData" [key]="'Root'" [data]="explorerData" [parentIsArray]="false"></app-explorer-node>
-                   <div *ngIf="!explorerData" class="empty-state">
-                      <mat-icon class="empty-icon">account_tree</mat-icon>
-                      <p class="empty-text">Mapping required</p>
+                <div *ngIf="selectedTabIndex === 0" class="h-full flex flex-col">
+                   <div class="explorer-actions-row">
+                     <div class="mode-slider-container">
+                       <div class="mode-slider" [class.edit-active]="editMode" (click)="editMode = !editMode; saveSettings()">
+                         <div class="mode-knob"></div>
+                         <span class="mode-text view">VIEW</span>
+                         <span class="mode-text edit">EDIT</span>
+                       </div>
+                     </div>
+
+                     <div class="search-bar-container flex-grow">
+                       <mat-icon class="search-icon">search</mat-icon>
+                       <input 
+                         type="text" 
+                         [(ngModel)]="explorerSearchQuery" 
+                         placeholder="Search values..." 
+                         class="search-input"
+                       >
+                       <button *ngIf="explorerSearchQuery" (click)="explorerSearchQuery = ''" class="clear-search">
+                          <mat-icon>close</mat-icon>
+                       </button>
+                     </div>
+                   </div>
+
+                   <div class="pt-2">
+                     <app-explorer-node 
+                       *ngIf="getFilteredData()" 
+                       [key]="'Root'" 
+                       [data]="getFilteredData()" 
+                       [parentIsArray]="false"
+                       [editMode]="editMode"
+                       [expansionPath]="currentExpansionPath"
+                       [fullPath]="['Root']"
+                       [bookmarks]="bookmarks"
+                       (jumpTo)="handleJump($event)"
+                       (replaceAll)="openReplaceModal($event)"
+                       (viewInstances)="viewInstances($event)"
+                       (toggleBookmark)="toggleBookmark($event)">
+                     </app-explorer-node>
+                     <div *ngIf="!explorerData" class="empty-state">
+                        <mat-icon class="empty-icon">account_tree</mat-icon>
+                        <p class="empty-text">Mapping required</p>
+                     </div>
+                     <div *ngIf="explorerData && !getFilteredData()" class="empty-state">
+                        <mat-icon class="empty-icon">search_off</mat-icon>
+                        <p class="empty-text">No matches found</p>
+                     </div>
                    </div>
                 </div>
+
+                <!-- Instances Sidebar -->
+                <aside class="instances-sidebar" *ngIf="selectedTabIndex === 0 && showInstancesSidebar">
+                  <div class="sidebar-header">
+                    <div class="header-title">
+                      <mat-icon>visibility</mat-icon>
+                      <span>Occurrences</span>
+                    </div>
+                    <button class="btn-close" (click)="closeInstancesSidebar()">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                  
+                  <div class="sidebar-content custom-scrollbar">
+                    <div class="instance-info">
+                      <p class="meta-label">Value:</p>
+                      <code class="instance-value">{{ instanceValue }}</code>
+                      <p class="meta-sub">Found {{ instancesList.length }} instances</p>
+                    </div>
+
+                    <div class="instances-list">
+                      <div *ngFor="let inst of instancesList" class="instance-card" (click)="jumpToInstance(inst.path)">
+                        <div class="instance-icon">
+                          <mat-icon>gps_fixed</mat-icon>
+                        </div>
+                        <div class="instance-details">
+                          <p class="instance-context">{{ inst.context }}</p>
+                          <div class="instance-path">
+                            <ng-container *ngFor="let segment of inst.path; let i = index; let last = last">
+                              <span class="path-segment" 
+                                    [class.target-segment]="last"
+                                    *ngIf="segment !== 'Root'" 
+                                    (click)="$event.stopPropagation(); jumpToInstance(inst.path.slice(0, i + 1))"
+                                    title="Navigate to {{ segment }}">
+                                {{ inst.displayPath[i] }}
+                              </span>
+                            </ng-container>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
 
                 <!-- JSON Prettifier Output -->
                 <div *ngIf="selectedTabIndex === 1" [innerHTML]="jsonOutput" class="whitespace-pre"></div>
@@ -139,12 +263,31 @@ import { ExplorerNodeComponent } from './shared/components/explorer-node/explore
             </div>
           </section>
         </main>
-        
-        <footer class="app-footer">
-          <p class="footer-brand">
-            JSON EXPLORER
-          </p>
-        </footer>
+      </div>
+
+      <!-- Replace Modal -->
+      <div class="modal-backdrop" *ngIf="showReplaceModal" (click)="cancelReplace()">
+        <div class="custom-modal" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <mat-icon class="icon-vital">find_replace</mat-icon>
+            <h3>Global Replace</h3>
+          </div>
+          <div class="modal-body">
+            <div class="replace-info">
+              <p class="replace-label">Current Value:</p>
+              <code class="value-preview">{{ replaceOldValue }}</code>
+              <p class="replace-meta">Occurs <span class="count-tag">{{ replaceCount }}</span> times in the data.</p>
+            </div>
+            <div class="replace-input-group">
+              <p class="replace-label">Replace with:</p>
+              <input type="text" [(ngModel)]="replaceNewValue" class="modal-input" placeholder="New value..." (keyup.enter)="confirmReplace()" autofocus>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" (click)="cancelReplace()">Cancel</button>
+            <button class="btn-confirm" (click)="confirmReplace()">Replace All</button>
+          </div>
+        </div>
       </div>
     </div>
   `
@@ -161,8 +304,33 @@ export class App implements OnInit {
   showStatus = false;
   explorerData: any = null;
   toolAddresses: string[] = [];
+  explorerSearchQuery = '';
+  currentExpansionPath: string[] = [];
+  stripMetadata = false;
+  editMode = false;
+
+  showReplaceModal = false;
+  replaceOldValue: any = null;
+  replaceNewValue: any = '';
+  replaceCount = 0;
+
+  showInstancesSidebar = false;
+  instancesList: any[] = [];
+  instanceValue: any = null;
+
+  bookmarks: { path: string[], label: string }[] = [];
+  showInputPanel = true;
 
   ngOnInit() {
+    // Load settings
+    const saved = localStorage.getItem('explorer_settings');
+    if (saved) {
+      const settings = JSON.parse(saved);
+      this.stripMetadata = !!settings.stripMetadata;
+      this.editMode = !!settings.editMode;
+      this.bookmarks = settings.bookmarks || [];
+    }
+
     // 1. Initial check for data parameter (?) in search string
     const searchParams = new URLSearchParams(window.location.search);
     const initialQueryData = searchParams.get('data');
@@ -207,8 +375,11 @@ export class App implements OnInit {
     let input = this.jsonInput.trim();
     if (!input) return;
 
+    // Auto-clear bookmarks when new data is processed
+    this.clearBookmarks();
+
     input = this.dataService.decodeIfBase64(input);
-    const cleanText = this.dataService.stripMetadata(input);
+    const cleanText = this.stripMetadata ? this.dataService.stripMetadata(input) : input;
 
     this.explorerData = null;
     this.toolAddresses = [];
@@ -293,5 +464,122 @@ export class App implements OnInit {
   getOutputLabel(): string {
     const labels: any = { 0: 'Structure Map', 1: 'Standardized JSON', 2: 'Discovered Addresses' };
     return labels[this.selectedTabIndex];
+  }
+
+  getFilteredData() {
+    if (!this.explorerData) return null;
+    return this.dataService.filterData(this.explorerData, this.explorerSearchQuery);
+  }
+
+  handleJump(path: string[]) {
+    // 1. Clear search first - this resets the data structure to full tree
+    this.explorerSearchQuery = '';
+    
+    // 2. Clear existing path to ensure a fresh cycle
+    this.currentExpansionPath = [];
+    
+    // 3. Wait for the tree to re-render with full data before applying path
+    setTimeout(() => {
+      this.currentExpansionPath = path;
+      this.showMessage("Jumped to context");
+    }, 150); // Increased delay to ensure search reset is processed
+  }
+
+  globalReplace(event: { oldValue: any, newValue: any }) {
+    if (!this.explorerData) return;
+    this.explorerData = this.dataService.replaceAll(this.explorerData, event.oldValue, event.newValue);
+    this.showMessage("Global replacement complete");
+  }
+
+  saveSettings() {
+    localStorage.setItem('explorer_settings', JSON.stringify({
+      stripMetadata: this.stripMetadata,
+      editMode: this.editMode,
+      bookmarks: this.bookmarks
+    }));
+  }
+
+  toggleBookmark(event: { path: string[], data: any }) {
+    const existingIndex = this.bookmarks.findIndex(b => JSON.stringify(b.path) === JSON.stringify(event.path));
+    
+    if (existingIndex > -1) {
+      this.bookmarks.splice(existingIndex, 1);
+      this.showMessage("Bookmark removed");
+    } else {
+      const key = event.path[event.path.length - 1];
+      let descriptor = '';
+      
+      if (typeof event.data === 'object' && event.data !== null) {
+        descriptor = this.dataService.getDescriptor(event.data, null);
+      } else {
+        // For primitives, just show the value (truncated if very long)
+        const valStr = String(event.data);
+        descriptor = valStr.length > 20 ? valStr.substring(0, 20) + '...' : valStr;
+      }
+
+      const label = descriptor ? `${key}: ${descriptor}` : key;
+      
+      this.bookmarks.push({
+        path: event.path,
+        label: label
+      });
+      this.showMessage("Bookmark added");
+    }
+    this.saveSettings();
+  }
+
+  removeBookmark(path: string[]) {
+    this.bookmarks = this.bookmarks.filter(b => JSON.stringify(b.path) !== JSON.stringify(path));
+    this.saveSettings();
+  }
+
+  clearBookmarks() {
+    this.bookmarks = [];
+    this.saveSettings();
+  }
+
+  isBookmarked(path: string[]): boolean {
+    return this.bookmarks.some(b => JSON.stringify(b.path) === JSON.stringify(path));
+  }
+
+  openReplaceModal(event: { oldValue: any, newValue: any }) {
+    this.replaceOldValue = event.oldValue;
+    this.replaceNewValue = event.oldValue; // Default to same value for easy editing
+    this.replaceCount = this.dataService.countOccurrences(this.explorerData, event.oldValue);
+    this.showReplaceModal = true;
+  }
+
+  confirmReplace() {
+    if (!this.explorerData) return;
+    
+    // Cast type if needed (very basic)
+    let finalValue = this.replaceNewValue;
+    if (typeof this.replaceOldValue === 'number') finalValue = Number(this.replaceNewValue);
+    if (typeof this.replaceOldValue === 'boolean') finalValue = String(this.replaceNewValue).toLowerCase() === 'true';
+
+    this.explorerData = this.dataService.replaceAll(this.explorerData, this.replaceOldValue, finalValue);
+    this.showReplaceModal = false;
+    this.showMessage(`Replaced ${this.replaceCount} instances`);
+  }
+
+  cancelReplace() {
+    this.showReplaceModal = false;
+  }
+
+  viewInstances(value: any) {
+    this.instanceValue = value;
+    // We pass ['Root'] as the initial path to match our Explorer component's root key
+    this.instancesList = this.dataService.findAllInstances(this.explorerData, value, ['Root']);
+    this.showInstancesSidebar = true;
+  }
+
+  closeInstancesSidebar() {
+    this.showInstancesSidebar = false;
+  }
+
+  jumpToInstance(path: string[]) {
+    this.handleJump(path);
+    // Optional: close sidebar on jump? User might want to stay. 
+    // Let's keep it open for easy multi-jump.
   }
 }
