@@ -34,14 +34,28 @@ export class StorageService {
       const transaction = this.db!.transaction(this.storeName, 'readwrite');
       const store = transaction.objectStore(this.storeName);
       
-      // Clear and rewrite all for simplicity in this multi-file implementation
-      const clearRequest = store.clear();
-      clearRequest.onsuccess = () => {
-        files.forEach(file => store.add(file));
-      };
+      // Use put for atomic updates instead of clear/add
+      files.forEach(file => {
+        try {
+          store.put(file);
+        } catch (e) {
+          console.error("Failed to put file in store", file.id, e);
+        }
+      });
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  async deleteFile(id: string): Promise<void> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(this.storeName, 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
     });
   }
 

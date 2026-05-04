@@ -48,7 +48,14 @@ import { DataService } from '../../../core/services/data.service';
               </div>
               
               <!-- Text/Number Input -->
-              <input *ngIf="!isBoolean" 
+              <textarea *ngIf="!isBoolean && isDescriptionField"
+                     [value]="data"
+                     (input)="onInputChange($event)"
+                     (click)="$event.stopPropagation()"
+                     class="inline-textarea custom-scrollbar"
+                     [ngClass]="getValueClass()"></textarea>
+
+              <input *ngIf="!isBoolean && !isDescriptionField" 
                      [type]="isNumber ? 'number' : 'text'"
                      [value]="data"
                      (input)="onInputChange($event)"
@@ -98,7 +105,7 @@ import { DataService } from '../../../core/services/data.service';
         </app-explorer-node>
       </div>
     </div>
-  `
+  `,
 })
 export class ExplorerNodeComponent implements OnChanges {
   private el = inject(ElementRef);
@@ -137,6 +144,11 @@ export class ExplorerNodeComponent implements OnChanges {
     return typeof this.data === 'number';
   }
 
+  get isDescriptionField(): boolean {
+    const k = String(this.key).toLowerCase();
+    return k.includes('description');
+  }
+
   toggleBoolean(event: MouseEvent) {
     event.stopPropagation();
     this.updateValue.emit({ path: this.fullPath, value: !this.data });
@@ -153,12 +165,12 @@ export class ExplorerNodeComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['data'] && this.data) {
-      if (this.data.__autoExpand) {
+    if (changes['data']) {
+      if (this.data && this.data.__autoExpand) {
         this.expanded = true;
       }
       
-      if (this.isArray) {
+      if (this.data && this.isArray) {
         const dataObj = this.data;
         const keys = Object.keys(dataObj);
         const hasMatchingChild = keys.some(k => 
@@ -286,26 +298,24 @@ export class ExplorerNodeComponent implements OnChanges {
     this.select.emit({ path: this.fullPath, data: this.data });
   }
 
-  getDisplayKey(): string {
-    if (!this.parentIsArray || !this.isObject || (Array.isArray(this.data) || (this.data && this.data.__wasArray))) {
-      return this.key;
-    }
-
-    return this.dataService.getDescriptor(this.data, null);
-  }
-
   getDisplayHtml(): string {
-    const raw = this.getDisplayKey();
-    if (raw === this.key) return raw;
-
+    const raw = this.dataService.getDisplayLabel(this.data, this.key, this.parentIsArray);
+    
     // If it has the " | " separator, wrap the ID part in a colored span
     if (raw.includes(' | ')) {
-      const parts = raw.split(' | ');
-      const html = `<span class="id-segment">${parts[0]}</span> | ${parts[1]}`;
-      return this.parentIsArray ? `[${this.key}] ${html}` : html;
+      // Handle cases like "[0] 1234 | Name" or "1234 | Name"
+      const prefixMatch = raw.match(/^(\[\d+\]\s+)?(.*)$/);
+      if (prefixMatch) {
+        const prefix = prefixMatch[1] || '';
+        const body = prefixMatch[2];
+        if (body.includes(' | ')) {
+          const parts = body.split(' | ');
+          return `${prefix}<span class="id-segment">${parts[0]}</span> | ${parts[1]}`;
+        }
+      }
     }
 
-    return this.parentIsArray ? `[${this.key}] ${raw}` : raw;
+    return raw;
   }
 
   getKeys(): string[] {

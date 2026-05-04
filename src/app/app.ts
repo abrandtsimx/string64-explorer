@@ -134,7 +134,7 @@ interface ExplorerFile {
                 </div>
               </div>
               <div class="header-actions">
-                <label class="setting-toggle" title="Strip Metadata from JSON (Authored Environments)">
+                <label class="setting-toggle" title="Normalizes every Unity Easy Save &quot;__type&quot; wrapper (missing comma after the type name). Readable JSON values stay unwrapped; odd payloads become { __easySaveType, __easySaveValue }. Optional: empty Metadata / MetaData arrays.">
                   <input type="checkbox" [(ngModel)]="stripMetadata" (change)="saveSettings(); processInput()">
                   <span class="toggle-label">Strip</span>
                 </label>
@@ -245,6 +245,22 @@ interface ExplorerFile {
                             <mat-icon>close</mat-icon>
                          </button>
                        </div>
+
+                       <!-- Inline Action Buttons -->
+                       <div class="header-actions-group" *ngIf="explorerData">
+                         <button *ngIf="hasChanges" class="btn-action-inline revert" (click)="revertChanges()" title="Discard all edits">
+                           <mat-icon>undo</mat-icon>
+                         </button>
+                         <button *ngIf="hasChanges" class="btn-action-inline save" (click)="saveToInput()" title="Apply edits to Input Stream">
+                           <mat-icon>save</mat-icon>
+                         </button>
+                         <button class="btn-action-inline export" (click)="exportJson()" title="Download as JSON file">
+                           <mat-icon>download</mat-icon>
+                         </button>
+                         <button class="btn-action-inline copy" (click)="copyJson()" title="Copy current JSON">
+                           <mat-icon>content_copy</mat-icon>
+                         </button>
+                       </div>
                      </div>
 
                      <!-- Selection Breadcrumb Bar -->
@@ -264,28 +280,6 @@ interface ExplorerFile {
 
                    <!-- Scrollable Explorer Content -->
                    <div class="explorer-scroll-content custom-scrollbar">
-                     <!-- Changes Dashboard -->
-                     <div class="changes-dashboard" *ngIf="hasChanges">
-                       <div class="changes-info">
-                         <mat-icon class="icon-vital">edit_note</mat-icon>
-                         <span>Modified</span>
-                       </div>
-                       <div class="changes-actions">
-                         <button class="btn-dashboard revert" (click)="revertChanges()" title="Discard all edits">
-                           <mat-icon>undo</mat-icon> Revert
-                         </button>
-                         <button class="btn-dashboard save" (click)="saveToInput()" title="Apply edits to Input Stream">
-                           <mat-icon>save</mat-icon> Save
-                         </button>
-                         <button class="btn-dashboard export" (click)="exportJson()" title="Download as JSON file">
-                           <mat-icon>download</mat-icon> Export
-                         </button>
-                         <button class="btn-dashboard copy" (click)="copyJson()" title="Copy modified JSON">
-                           <mat-icon>content_copy</mat-icon> Copy
-                         </button>
-                       </div>
-                     </div>
-
                      <app-explorer-node 
                        *ngIf="getFilteredData()" 
                        [key]="'Root'" 
@@ -379,17 +373,35 @@ interface ExplorerFile {
                 <div *ngIf="selectedTabIndex === 1" [innerHTML]="jsonOutput" class="whitespace-pre p-4 h-full overflow-auto custom-scrollbar"></div>
 
                 <!-- Tool Lookup Output -->
-                <div *ngIf="selectedTabIndex === 2" class="address-list p-4 h-full overflow-auto custom-scrollbar">
-                  <div *ngIf="toolAddresses.length === 0" class="empty-state">
-                    <mat-icon class="empty-icon">search_off</mat-icon>
-                    <p class="empty-text">No addresses discovered</p>
-                  </div>
-                  <div *ngFor="let addr of toolAddresses" class="address-card" (click)="copyValue(addr)">
-                    <div class="address-icon-box">
-                       <mat-icon class="icon-indigo">link</mat-icon>
+                <div *ngIf="selectedTabIndex === 2" class="h-full flex flex-col overflow-hidden">
+                  <div class="extraction-header">
+                    <div class="search-bar-container flex-grow">
+                      <mat-icon class="search-icon">filter_list</mat-icon>
+                      <input 
+                        type="text" 
+                        [(ngModel)]="extractQuery" 
+                        placeholder="Key to extract (e.g. ToolAddress)..." 
+                        class="search-input"
+                        (keyup.enter)="runExtraction()"
+                      >
+                      <button class="btn-extract-run" (click)="runExtraction()" title="Run Extraction">
+                        <mat-icon>play_arrow</mat-icon>
+                      </button>
                     </div>
-                    <span class="token-string flex-grow truncate">{{ addr }}</span>
-                    <mat-icon class="copy-hint">content_copy</mat-icon>
+                  </div>
+
+                  <div class="address-list p-4 flex-grow overflow-auto custom-scrollbar">
+                    <div *ngIf="toolAddresses.length === 0" class="empty-state">
+                      <mat-icon class="empty-icon">search_off</mat-icon>
+                      <p class="empty-text">No matches discovered</p>
+                    </div>
+                    <div *ngFor="let addr of toolAddresses" class="address-card" (click)="copyValue(addr)">
+                      <div class="address-icon-box">
+                         <mat-icon class="icon-indigo">link</mat-icon>
+                      </div>
+                      <span class="token-string flex-grow truncate">{{ addr }}</span>
+                      <mat-icon class="copy-hint">content_copy</mat-icon>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -428,6 +440,7 @@ interface ExplorerFile {
 })
 export class App implements OnInit {
   private dataService = inject(DataService);
+  private storageService = inject(StorageService);
   private route = inject(ActivatedRoute);
 
   selectedTabIndex = 0;
@@ -439,6 +452,7 @@ export class App implements OnInit {
   explorerData: any = null;
   toolAddresses: string[] = [];
   explorerSearchQuery = '';
+  extractQuery = 'ToolAddress';
   currentExpansionPath: string[] = [];
   stripMetadata = false;
   editMode = false;
@@ -469,22 +483,28 @@ export class App implements OnInit {
   currentSelectedDisplayPath: string[] = [];
   isInputLocked = false;
 
-  ngOnInit() {
-    // Load settings
+  async ngOnInit() {
+    // Load metadata settings
     const saved = localStorage.getItem('explorer_settings');
     if (saved) {
       const settings = JSON.parse(saved);
       this.stripMetadata = !!settings.stripMetadata;
       this.editMode = !!settings.editMode;
       this.bookmarksWidth = settings.bookmarksWidth || 330;
-      this.files = settings.files || [];
       this.activeFileId = settings.activeFileId || '';
     }
 
-    if (this.files.length === 0) {
-      this.createNewFile();
-    } else if (this.activeFileId) {
-      this.loadFileData(this.activeFileId);
+    // Load actual large files from IndexedDB
+    try {
+      this.files = await this.storageService.loadFiles();
+      if (this.files.length === 0) {
+        this.createNewFile();
+      } else if (this.activeFileId) {
+        this.loadFileData(this.activeFileId);
+      }
+    } catch (e) {
+      console.error("Failed to load files from storage", e);
+      if (this.files.length === 0) this.createNewFile();
     }
 
     // 1. Initial check for data parameter (?) in search string
@@ -522,8 +542,13 @@ export class App implements OnInit {
 
   onTabChange(index: number) {
     this.selectedTabIndex = index;
+    // Strictly only process if we have NO data for the requested view
     if (this.jsonInput) {
-      this.processInput();
+      if (index === 0 && this.explorerData === null) {
+        this.processInput();
+      } else if (index === 1 && !this.jsonOutput) {
+        this.processInput();
+      }
     }
   }
 
@@ -535,6 +560,12 @@ export class App implements OnInit {
       // 1. Sync the current input to the active file object immediately
       const current = this.files.find(f => f.id === this.activeFileId);
       if (current) {
+        // Prompt for name if still untitled
+        if (current.name === 'Untitled Session') {
+          const newName = window.prompt("Enter a name for this session:", "My JSON Data");
+          if (newName) current.name = newName;
+        }
+
         current.jsonInput = input;
         // Baseline capture: if first time, or manually entered after being empty
         if (!current.originalJsonInput) {
@@ -549,7 +580,7 @@ export class App implements OnInit {
       this.clearBookmarks();
 
       input = this.dataService.decodeIfBase64(input);
-      const cleanText = this.stripMetadata ? this.dataService.stripMetadata(input) : input;
+      const cleanText = this.dataService.prepareJsonForParse(input, this.stripMetadata);
 
       this.explorerData = null;
       this.originalExplorerData = null;
@@ -578,14 +609,9 @@ export class App implements OnInit {
         }
         const jsonObj = JSON.parse(jsonToParse);
         this.jsonOutput = this.dataService.syntaxHighlight(JSON.stringify(jsonObj, null, 4));
-        this.showMessage("Metadata stripped & prettified");
+        this.showMessage(this.stripMetadata ? "Metadata / MetaData cleared & JSON prettified" : "Easy Save values normalized & prettified");
       } else if (this.selectedTabIndex === 2) { // Extract
-        this.toolAddresses = this.dataService.recursiveToolExtract(cleanText);
-        if (this.toolAddresses.length > 0) {
-          this.showMessage(`Located ${this.toolAddresses.length} addresses`);
-        } else {
-          this.showMessage("No addresses found", "error");
-        }
+        this.runExtraction();
       }
       
       // 4. Persist the entire file collection
@@ -594,6 +620,19 @@ export class App implements OnInit {
     } catch (e: any) {
       console.error("Processing error:", e);
       this.showMessage("Processing failed: " + e.message, "error");
+    }
+  }
+
+  runExtraction() {
+    if (!this.jsonInput) return;
+    const input = this.dataService.decodeIfBase64(this.jsonInput);
+    const cleanText = this.dataService.prepareJsonForParse(input, this.stripMetadata);
+    
+    this.toolAddresses = this.dataService.recursiveElementExtract(cleanText, this.extractQuery);
+    if (this.toolAddresses.length > 0) {
+      this.showMessage(`Extracted ${this.toolAddresses.length} values for "${this.extractQuery}"`);
+    } else {
+      this.showMessage(`No values found for "${this.extractQuery}"`, "error");
     }
   }
 
@@ -682,9 +721,14 @@ export class App implements OnInit {
       stripMetadata: this.stripMetadata,
       editMode: this.editMode,
       bookmarksWidth: this.bookmarksWidth,
-      files: this.files,
       activeFileId: this.activeFileId
     }));
+    
+    // Asynchronously save bulky file data to IndexedDB
+    this.storageService.saveFiles(this.files).catch(err => {
+       console.error("Critical: Failed to save files to IndexedDB", err);
+       this.showMessage("Persistence Error: Changes might not be saved", "error");
+    });
   }
 
   createNewFile() {
@@ -725,8 +769,9 @@ export class App implements OnInit {
     const file = this.files.find(f => f.id === id);
     if (file) {
       this.jsonInput = file.jsonInput || '';
-      this.explorerData = file.explorerData || null;
-      this.originalExplorerData = file.originalExplorerData || null;
+      // Use a fresh copy to prevent reference pollution
+      this.explorerData = file.explorerData ? JSON.parse(JSON.stringify(file.explorerData)) : null;
+      this.originalExplorerData = file.originalExplorerData ? JSON.parse(JSON.stringify(file.originalExplorerData)) : null;
       this.bookmarks = file.bookmarks || [];
       this.hasChanges = file.hasChanges || false;
       this.stripMetadata = file.stripMetadata || false;
@@ -743,6 +788,8 @@ export class App implements OnInit {
     const index = this.files.findIndex(f => f.id === id);
     if (index > -1) {
       this.files.splice(index, 1);
+      this.storageService.deleteFile(id).catch(console.error);
+      
       if (this.activeFileId === id) {
         if (this.files.length > 0) {
           this.switchFile(this.files[0].id);
@@ -799,28 +846,41 @@ export class App implements OnInit {
 
   handleValueUpdate(event: { path: string[], value: any }) {
     if (!this.explorerData) return;
-    this.explorerData = this.dataService.replaceAtPaths(this.explorerData, [event.path], event.value);
+    
+    // 1. Update the tree structure - start recursion at ['Root'] to match explorer paths
+    this.explorerData = this.dataService.replaceAtPaths(this.explorerData, [event.path], event.value, ['Root']);
+    
+    // 2. Sync back to the input stream string immediately
+    this.jsonInput = JSON.stringify(this.explorerData, null, 2);
     this.hasChanges = true;
     
+    // 3. Keep the file collection in sync
     const current = this.files.find(f => f.id === this.activeFileId);
     if (current) {
-      current.explorerData = this.explorerData;
+      current.explorerData = JSON.parse(JSON.stringify(this.explorerData));
+      current.jsonInput = this.jsonInput;
       current.hasChanges = true;
     }
     
     this.saveSettings();
-    this.showMessage("Value updated locally");
+    this.showMessage("Value updated and synced to input");
   }
 
   revertChanges() {
     const current = this.files.find(f => f.id === this.activeFileId);
     if (current && current.originalJsonInput) {
       this.jsonInput = current.originalJsonInput;
-      this.processInput();
-      this.hasChanges = false;
-      if (current) current.hasChanges = false;
-      this.saveSettings();
-      this.showMessage("Changes reverted to original");
+      
+      // Force a UI clear to ensure deep re-render
+      this.explorerData = null;
+      
+      setTimeout(() => {
+        this.processInput();
+        this.hasChanges = false;
+        if (current) current.hasChanges = false;
+        this.saveSettings();
+        this.showMessage("Changes reverted to original");
+      }, 10);
     }
   }
 
@@ -837,24 +897,33 @@ export class App implements OnInit {
     this.jsonInput = json;
     
     if (current) {
-      current.originalJsonInput = json; // New baseline
+      current.originalJsonInput = json; // New baseline string
       current.jsonInput = json;
+      
+      // Crucial: Update the original baseline data to match current edits
+      current.explorerData = JSON.parse(JSON.stringify(this.explorerData));
+      current.originalExplorerData = JSON.parse(JSON.stringify(this.explorerData));
       current.hasChanges = false;
     }
 
     this.hasChanges = false;
+    this.originalExplorerData = JSON.parse(JSON.stringify(this.explorerData));
     this.saveSettings();
     this.showMessage("Changes saved to session");
   }
 
   exportJson() {
     if (!this.explorerData) return;
+    
+    const current = this.files.find(f => f.id === this.activeFileId);
+    const fileName = current ? current.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'exported_data';
+    
     const json = JSON.stringify(this.explorerData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `exported_data_${new Date().getTime()}.json`;
+    a.download = `${fileName}_${new Date().getTime()}.json`;
     a.click();
     window.URL.revokeObjectURL(url);
     this.showMessage("JSON Exported");
@@ -942,7 +1011,7 @@ export class App implements OnInit {
 
     if (this.showInstancesSidebar && this.selectedInstances.size < this.instancesList.length) {
       const selectedPaths = Array.from(this.selectedInstances).map(ps => JSON.parse(ps));
-      this.explorerData = this.dataService.replaceAtPaths(this.explorerData, selectedPaths, finalValue);
+      this.explorerData = this.dataService.replaceAtPaths(this.explorerData, selectedPaths, finalValue, ['Root']);
       this.showMessage(`Replaced ${this.selectedInstances.size} selected instances`);
       this.viewInstances(this.instanceValue);
     } else {
@@ -951,12 +1020,17 @@ export class App implements OnInit {
       if (this.showInstancesSidebar) this.viewInstances(this.instanceValue);
     }
     
+    // Sync back to input stream
+    this.jsonInput = JSON.stringify(this.explorerData, null, 2);
+    this.hasChanges = true;
+
     const current = this.files.find(f => f.id === this.activeFileId);
     if (current) {
-      current.explorerData = this.explorerData;
+      current.explorerData = JSON.parse(JSON.stringify(this.explorerData));
+      current.jsonInput = this.jsonInput;
       current.hasChanges = true;
     }
-    this.hasChanges = true;
+    
     this.saveSettings();
     this.showReplaceModal = false;
   }
@@ -1008,20 +1082,28 @@ export class App implements OnInit {
   onNodeSelect(event: { path: string[], data: any }) {
     this.currentSelectedPath = event.path;
     const displayPath: string[] = [];
+    const sourceData = this.getFilteredData() || this.explorerData;
+    
     for (let i = 0; i < event.path.length; i++) {
       const segment = event.path[i];
       if (segment === 'Root') {
         displayPath.push('Root');
         continue;
       }
-      const parentPath = event.path.slice(0, i);
-      const parentData = this.getValueByPath(this.explorerData, parentPath);
-      const currentData = this.getValueByPath(this.explorerData, event.path.slice(0, i + 1));
-      const isParentArr = parentData && (Array.isArray(parentData) || parentData.__wasArray);
-      if (isParentArr && currentData && typeof currentData === 'object') {
-        displayPath.push(this.dataService.getDescriptor(currentData, segment));
+
+      // For the leaf node (the one actually clicked), we can use the passed event.data
+      if (i === event.path.length - 1) {
+        const parentPath = event.path.slice(0, i);
+        const parentData = this.getValueByPath(sourceData, parentPath);
+        const isParentArr = !!(parentData && (Array.isArray(parentData) || parentData.__wasArray));
+        displayPath.push(this.dataService.getDisplayLabel(event.data, segment, isParentArr));
       } else {
-        displayPath.push(segment);
+        // For ancestors, we look up the data
+        const parentPath = event.path.slice(0, i);
+        const parentData = this.getValueByPath(sourceData, parentPath);
+        const currentData = this.getValueByPath(sourceData, event.path.slice(0, i + 1));
+        const isParentArr = !!(parentData && (Array.isArray(parentData) || parentData.__wasArray));
+        displayPath.push(this.dataService.getDisplayLabel(currentData, segment, isParentArr));
       }
     }
     this.currentSelectedDisplayPath = displayPath;
@@ -1030,6 +1112,7 @@ export class App implements OnInit {
   private getValueByPath(obj: any, path: string[]): any {
     let current = obj;
     for (const segment of path) {
+      if (segment === 'Root') continue;
       if (!current) return null;
       current = current[segment];
     }
